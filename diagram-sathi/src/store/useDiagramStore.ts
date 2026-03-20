@@ -5,8 +5,10 @@ import dagre from "dagre";
 export interface DfdNode {
   id: string;
   label: string;
-  type: "process" | "entity" | "datastore";
+  type: "rectangle" | "square" | "circle" | "diamond" | "parallelogram" | "hexagon" | "cylinder";
   position?: { x: number; y: number }; // Added for bidirectional sync
+  width?: number;
+  height?: number;
 }
 
 export interface DfdEdge {
@@ -53,8 +55,11 @@ const DEFAULT_CODE = `graph TD
   User[User] -->|Input Data| System((Main System))
   System -->|Store Data| DB[(Database)]
   %% @nodePosition: User 100 100
+  %% @nodeType: User rectangle
   %% @nodePosition: System 300 100
+  %% @nodeType: System circle
   %% @nodePosition: DB 500 100
+  %% @nodeType: DB cylinder
 `;
 
 // A very naive parser/generator for MVP.
@@ -81,26 +86,43 @@ const generateMermaidFromAst = (
       if (n.position) {
         code += `  %% @nodePosition: ${n.id} ${Math.round(n.position.x)} ${Math.round(n.position.y)}\n`;
       }
+      if (n.width && n.height) {
+        code += `  %% @nodeSize: ${n.id} ${Math.round(n.width)} ${Math.round(n.height)}\n`;
+      }
     });
     return code;
   }
 
-  let code = "graph TD\n  %% DiagramSathi Generated DFD\n";
+  let code = "graph TD\n  %% DiagramSathi Generated Diagram\n";
 
   nodes.forEach((n) => {
-    if (n.type === "process") code += `  ${n.id}((${n.label}))\n`;
-    else if (n.type === "datastore") code += `  ${n.id}[(${n.label})]\n`;
-    else code += `  ${n.id}[${n.label}]\n`; // entity default
+    let brackets = ["[", "]"];
+    switch (n.type) {
+      case "circle": brackets = ["((", "))"]; break;
+      case "cylinder": brackets = ["[(", ")]"]; break;
+      case "diamond": brackets = ["{", "}"]; break;
+      case "hexagon": brackets = ["{{", "}}"]; break;
+      case "parallelogram": brackets = ["[/", "/]"]; break;
+      case "rectangle": 
+      case "square": 
+      default:
+        brackets = ["[", "]"]; break;
+    }
+    code += `  ${n.id}${brackets[0]}${n.label}${brackets[1]}\n`;
   });
 
   edges.forEach((e) => {
     code += `  ${e.source} -->|${e.label}| ${e.target}\n`;
   });
 
-  // Inject positional metadata at the bottom
+  // Inject positional, type and size metadata at the bottom
   nodes.forEach((n) => {
     if (n.position) {
       code += `  %% @nodePosition: ${n.id} ${Math.round(n.position.x)} ${Math.round(n.position.y)}\n`;
+    }
+    code += `  %% @nodeType: ${n.id} ${n.type}\n`;
+    if (n.width && n.height) {
+      code += `  %% @nodeSize: ${n.id} ${Math.round(n.width)} ${Math.round(n.height)}\n`;
     }
   });
 
@@ -111,18 +133,25 @@ const parseMermaidToAst = (code: string) => {
   const nodesMap = new Map<string, DfdNode>();
   const edges: DfdEdge[] = [];
   const positions: Record<string, { x: number; y: number }> = {};
+  const sizes: Record<string, { width: number; height: number }> = {};
+  const types: Record<string, string> = {};
 
   const isEr = code.trim().startsWith("erDiagram");
   const lines = code.split("\n");
 
   const posRegex =
     /^\s*%%\s*@nodePosition:\s*([a-zA-Z0-9_]+)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s*$/;
-  // Matches DFD edges
+  const typeRegex =
+    /^\s*%%\s*@nodeType:\s*([a-zA-Z0-9_]+)\s+([a-zA-Z0-9_]+)\s*$/;
+  const sizeRegex =
+    /^\s*%%\s*@nodeSize:\s*([a-zA-Z0-9_]+)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s*$/;
+  // Matches edges
   const dfdEdgeRegex =
-    /([a-zA-Z0-9_]+)(?:\[.*?\]|\(\(.*?\)\)|\[\(.*?\)\])?\s*(?:-->|---|-.->|==>)\s*(?:\|([^|]*)\|\s*)?([a-zA-Z0-9_]+)/;
-  // Matches DFD Node definitions
+    /([a-zA-Z0-9_]+)(?:\[.*?\]|\(\(.*?\)\)|\[\(.*?\)\]|\{\{.*?\}\}|\{.*?\}|\[\/.*?\/\]|\[\\.*?\\\])?\s*(?:-->|---|-.->|==>)\s*(?:\|([^|]*)\|\s*)?([a-zA-Z0-9_]+)/;
+  // Matches Node definitions with all brackets
+  // 1=id, 2=cylinder, 3=circle, 4=hexagon, 5=diamond, 6=parallelogram, 7=parallelogramAlt, 8=trapezoid, 9=trapezoidAlt, 10=rectangle
   const nodeDefRegex =
-    /([a-zA-Z0-9_]+)\s*(?:(\[\((.*?)\)\])|(\(\((.*?)\)\))|(\[(.*?)\]))/g;
+    /([a-zA-Z0-9_]+)\s*(?:\[\((.*?)\)\]|\(\((.*?)\)\)|\{\{(.*?)\}\}|\{(.*?)\}|\[\/(.*?)\/\]|\[\\(.*?)\\\]|\[\/(.*?)\\\]|\[\\(.*?)\/\]|\[(.*?)\])/g;
   // Matches ER edges e.g. CUSTOMER ||--o{ ORDER : "places"
   const erEdgeRegex =
     /([a-zA-Z0-9_-]+)\s+(?:\|\||}\||\}o|\|o|o\||o\}|\|\{|\{o|\{\||-\|)[-.]+(?:o\{|\|\||o\||\|\{|\}o|\}|\{|-\|)\s+([a-zA-Z0-9_-]+)(?:\s*:\s*(.*))?/;
@@ -136,6 +165,23 @@ const parseMermaidToAst = (code: string) => {
       const y = parseFloat(posMatch[3]);
       if (!isNaN(x) && !isNaN(y)) {
         positions[id] = { x, y };
+      }
+      return;
+    }
+
+    const typeMatch = line.match(typeRegex);
+    if (typeMatch) {
+      types[typeMatch[1]] = typeMatch[2];
+      return;
+    }
+
+    const sizeMatch = line.match(sizeRegex);
+    if (sizeMatch) {
+      const id = sizeMatch[1];
+      const w = parseFloat(sizeMatch[2]);
+      const h = parseFloat(sizeMatch[3]);
+      if (!isNaN(w) && !isNaN(h)) {
+        sizes[id] = { width: w, height: h };
       }
       return;
     }
@@ -157,15 +203,15 @@ const parseMermaidToAst = (code: string) => {
         });
 
         if (!nodesMap.has(source))
-          nodesMap.set(source, { id: source, label: source, type: "entity" });
+          nodesMap.set(source, { id: source, label: source, type: "rectangle" });
         if (!nodesMap.has(target))
-          nodesMap.set(target, { id: target, label: target, type: "entity" });
+          nodesMap.set(target, { id: target, label: target, type: "rectangle" });
       } else {
         const entityMatch = line.match(/^\s*([a-zA-Z0-9_-]+)\s*\{/);
         if (entityMatch) {
           const id = entityMatch[1];
           if (!nodesMap.has(id))
-            nodesMap.set(id, { id, label: id, type: "entity" });
+            nodesMap.set(id, { id, label: id, type: "rectangle" });
         }
       }
     } else {
@@ -184,9 +230,9 @@ const parseMermaidToAst = (code: string) => {
         });
 
         if (!nodesMap.has(source))
-          nodesMap.set(source, { id: source, label: source, type: "entity" });
+          nodesMap.set(source, { id: source, label: source, type: "rectangle" });
         if (!nodesMap.has(target))
-          nodesMap.set(target, { id: target, label: target, type: "entity" });
+          nodesMap.set(target, { id: target, label: target, type: "rectangle" });
       }
 
       // Parse DFD node definitions
@@ -194,25 +240,19 @@ const parseMermaidToAst = (code: string) => {
       let ndMatch;
       while ((ndMatch = nodeDefRegex.exec(line)) !== null) {
         const id = ndMatch[1];
-        const isDatastore = !!ndMatch[2];
-        const datastoreLabel = ndMatch[3];
-        const isProcess = !!ndMatch[4];
-        const processLabel = ndMatch[5];
-        const isEntity = !!ndMatch[6];
-        const entityLabel = ndMatch[7];
-
-        let type: "process" | "entity" | "datastore" = "entity";
+        
+        // 1=id, 2=cylinder, 3=circle, 4=hexagon, 5=diamond, 6=parallelogram, 7=parallelogramAlt, 8=trapezoid, 9=trapezoidAlt, 10=rectangle
+        let type: DfdNode["type"] = "rectangle";
         let label = id;
 
-        if (isDatastore) {
-          type = "datastore";
-          label = datastoreLabel;
-        } else if (isProcess) {
-          type = "process";
-          label = processLabel;
-        } else if (isEntity) {
-          type = "entity";
-          label = entityLabel;
+        if (ndMatch[2] !== undefined) { type = "cylinder"; label = ndMatch[2]; }
+        else if (ndMatch[3] !== undefined) { type = "circle"; label = ndMatch[3]; }
+        else if (ndMatch[4] !== undefined) { type = "hexagon"; label = ndMatch[4]; }
+        else if (ndMatch[5] !== undefined) { type = "diamond"; label = ndMatch[5]; }
+        else if (ndMatch[6] !== undefined || ndMatch[7] !== undefined) { type = "parallelogram"; label = ndMatch[6] || ndMatch[7]; }
+        else if (ndMatch[8] !== undefined || ndMatch[9] !== undefined || ndMatch[10] !== undefined) { 
+          type = "rectangle"; 
+          label = ndMatch[8] || ndMatch[9] || ndMatch[10]; 
         }
 
         if (nodesMap.has(id)) {
@@ -230,10 +270,20 @@ const parseMermaidToAst = (code: string) => {
   let needsLayout = false;
 
   nodes.forEach((n) => {
+    // Explicit type override from metadata comments
+    if (types[n.id]) {
+      n.type = types[n.id] as DfdNode["type"];
+    }
+
     if (positions[n.id]) {
       n.position = positions[n.id];
     } else {
       needsLayout = true;
+    }
+
+    if (sizes[n.id]) {
+      n.width = sizes[n.id].width;
+      n.height = sizes[n.id].height;
     }
   });
 
@@ -251,10 +301,9 @@ const parseMermaidToAst = (code: string) => {
 
     // Provide larger estimated bounds for nodes to prevent overlapping text/edges
     nodes.forEach((n) => {
-      // Entity/Process nodes in our UI are relatively wide
-      // processes have min-w-[120px] and min-h-[120px]
-      const width = n.type === "process" ? 140 : 160;
-      const height = n.type === "process" ? 140 : 80;
+      // Use existing sizes if available, otherwise estimate
+      const width = n.width || (n.type === "circle" || n.type === "square" ? 140 : 160);
+      const height = n.height || (n.type === "circle" || n.type === "square" ? 140 : 80);
       dagreGraph.setNode(n.id, { width, height });
     });
 
@@ -268,8 +317,8 @@ const parseMermaidToAst = (code: string) => {
       const nodeWithPosition = dagreGraph.node(n.id);
       if (nodeWithPosition) {
         // Must match the estimated widths above to center correctly
-        const width = n.type === "process" ? 140 : 160;
-        const height = n.type === "process" ? 140 : 80;
+        const width = n.width || (n.type === "circle" || n.type === "square" ? 140 : 160);
+        const height = n.height || (n.type === "circle" || n.type === "square" ? 140 : 80);
         n.position = {
           x: nodeWithPosition.x - width / 2,
           y: nodeWithPosition.y - height / 2,
@@ -292,17 +341,17 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   isGenerating: false,
   preferredDiagramType: "auto",
   nodes: [
-    { id: "User", label: "User", type: "entity", position: { x: 100, y: 100 } },
+    { id: "User", label: "User", type: "rectangle", position: { x: 100, y: 100 } },
     {
       id: "System",
       label: "Main System",
-      type: "process",
+      type: "circle",
       position: { x: 300, y: 100 },
     },
     {
       id: "DB",
       label: "Database",
-      type: "datastore",
+      type: "cylinder",
       position: { x: 500, y: 100 },
     },
   ],
@@ -337,7 +386,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
 
   addNode: (nodeData) => {
     const id = `n_${Date.now()}`;
-    const newNode = { ...nodeData, id, position: { x: 100, y: 100 } };
+    const newNode = { ...nodeData, id, position: { x: 100, y: 100 } } as DfdNode;
     const newNodes = [...get().nodes, newNode];
     set({ nodes: newNodes });
     get().updateCodeFromAst(newNodes, get().edges);

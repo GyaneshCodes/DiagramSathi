@@ -14,14 +14,11 @@ body,
   width: 100%;
   margin: 0;
   padding: 0;
-  background-color: #f8fafc; /* slate-50 */
-  color: #0f172a; /* slate-900 */
+  background-color: #09090b; /* zinc-950 */
+  color: #e2e8f0; /* slate-200 */
 }
 
-/* React Flow styles overrides if needed */
-.react-flow__node {
-  /* Ensure the custom node for mermaid doesn't have default padding we don't want */
-}
+
 
 /* Custom scrollbar for editors/panes */
 ::-webkit-scrollbar {
@@ -34,10 +31,10 @@ body,
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #334155;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #6366f1;
 }
