@@ -1,18 +1,27 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
   ReactFlow,
+  ReactFlowProvider,
   Controls,
   Background,
   useNodesState,
   useEdgesState,
+  useReactFlow,
+  useInternalNode,
+  getSmoothStepPath,
+  BaseEdge,
+  EdgeLabelRenderer,
+  type EdgeProps,
+  type InternalNode,
+  Handle,
+  Position,
+  type NodeProps,
   type Node,
   type Edge,
   type Connection,
   addEdge as rfAddEdge,
-  Handle,
-  Position,
-  type NodeProps,
   NodeResizer,
+  MarkerType,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
@@ -21,41 +30,232 @@ import {
   type DfdEdge,
 } from "../store/useDiagramStore";
 import { RefreshCw } from "lucide-react";
+import { getLayoutedElements } from "../utils/layoutGraph";
+
+// --- Custom Floating Edge Logic --- //
+
+// Helper to find the best cardinal position (Top, Bottom, Left, Right)
+// between two nodes based on their centers.
+function getEdgeParams(source: InternalNode, target: InternalNode) {
+  const sourceCenter = {
+    x: source.internals.positionAbsolute.x + (source.measured.width ?? 0) / 2,
+    y: source.internals.positionAbsolute.y + (source.measured.height ?? 0) / 2,
+  };
+  const targetCenter = {
+    x: target.internals.positionAbsolute.x + (target.measured.width ?? 0) / 2,
+    y: target.internals.positionAbsolute.y + (target.measured.height ?? 0) / 2,
+  };
+
+  const dx = targetCenter.x - sourceCenter.x;
+  const dy = targetCenter.y - sourceCenter.y;
+
+  let sourcePos = Position.Bottom;
+  let targetPos = Position.Top;
+
+  // Determine cardinal directions based on the vector between centers
+  if (Math.abs(dx) > Math.abs(dy)) {
+    sourcePos = dx > 0 ? Position.Right : Position.Left;
+    targetPos = dx > 0 ? Position.Left : Position.Right;
+  } else {
+    sourcePos = dy > 0 ? Position.Bottom : Position.Top;
+    targetPos = dy > 0 ? Position.Top : Position.Bottom;
+  }
+
+  // Calculate coordinates of the center point of the chosen side
+  const getSideCenter = (node: InternalNode, pos: Position) => {
+    const { x, y } = node.internals.positionAbsolute;
+    const w = node.measured.width ?? 0;
+    const h = node.measured.height ?? 0;
+
+    switch (pos) {
+      case Position.Top:
+        return { x: x + w / 2, y };
+      case Position.Bottom:
+        return { x: x + w / 2, y: y + h };
+      case Position.Left:
+        return { x, y: y + h / 2 };
+      case Position.Right:
+        return { x: x + w, y: y + h / 2 };
+    }
+  };
+
+  const { x: sx, y: sy } = getSideCenter(source, sourcePos);
+  const { x: tx, y: ty } = getSideCenter(target, targetPos);
+
+  return { sx, sy, tx, ty, sourcePos, targetPos };
+}
+
+// Custom Floating SmoothStep Edge
+const FloatingSmoothStepEdge = ({
+  id,
+  source,
+  target,
+  label,
+  markerEnd,
+  style,
+}: EdgeProps) => {
+  const sourceNode = useInternalNode(source);
+  const targetNode = useInternalNode(target);
+
+  if (!sourceNode || !targetNode) return null;
+
+  const { sx, sy, tx, ty, sourcePos, targetPos } = getEdgeParams(
+    sourceNode,
+    targetNode,
+  );
+
+  const [edgePath, labelX, labelY] = getSmoothStepPath({
+    sourceX: sx,
+    sourceY: sy,
+    sourcePosition: sourcePos,
+    targetX: tx,
+    targetY: ty,
+    targetPosition: targetPos,
+  });
+
+  return (
+    <>
+      <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={style} />
+      {label && (
+        <EdgeLabelRenderer>
+          <div
+            style={{
+              position: "absolute",
+              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+              padding: "4px 4px",
+              borderRadius: 4,
+              fontSize: 12,
+              fontWeight: 500,
+              background: "#1e293b",
+              color: "#e2e8f0",
+              pointerEvents: "all",
+            }}
+            className="nodrag nopan"
+          >
+            {label}
+          </div>
+        </EdgeLabelRenderer>
+      )}
+    </>
+  );
+};
 
 // --- Custom Nodes for DFD Symbols --- //
 
-const HandleStyles = {
-  className: "w-2 h-2 bg-[#6366f1]! border-2 border-slate-800!",
-};
+const handleClass =
+  "!w-2 !h-2 !bg-[#6366f1] !border-2 !border-slate-800 !opacity-0 group-hover:!opacity-100 transition-opacity";
+
+const renderHandles = (offsets?: {
+  top?: string;
+  bottom?: string;
+  left?: string;
+  right?: string;
+}) => (
+  <>
+    <Handle
+      type="source"
+      position={Position.Top}
+      id="top-source"
+      className={handleClass}
+      style={offsets?.top ? { top: offsets.top, bottom: "auto" } : undefined}
+    />
+    <Handle
+      type="target"
+      position={Position.Top}
+      id="top-target"
+      className={handleClass}
+      style={offsets?.top ? { top: offsets.top, bottom: "auto" } : undefined}
+    />
+
+    <Handle
+      type="source"
+      position={Position.Bottom}
+      id="bottom-source"
+      className={handleClass}
+      style={
+        offsets?.bottom ? { bottom: offsets.bottom, top: "auto" } : undefined
+      }
+    />
+    <Handle
+      type="target"
+      position={Position.Bottom}
+      id="bottom-target"
+      className={handleClass}
+      style={
+        offsets?.bottom ? { bottom: offsets.bottom, top: "auto" } : undefined
+      }
+    />
+
+    <Handle
+      type="source"
+      position={Position.Left}
+      id="left-source"
+      className={handleClass}
+      style={offsets?.left ? { left: offsets.left, right: "auto" } : undefined}
+    />
+    <Handle
+      type="target"
+      position={Position.Left}
+      id="left-target"
+      className={handleClass}
+      style={offsets?.left ? { left: offsets.left, right: "auto" } : undefined}
+    />
+
+    <Handle
+      type="source"
+      position={Position.Right}
+      id="right-source"
+      className={handleClass}
+      style={
+        offsets?.right ? { right: offsets.right, left: "auto" } : undefined
+      }
+    />
+    <Handle
+      type="target"
+      position={Position.Right}
+      id="right-target"
+      className={handleClass}
+      style={
+        offsets?.right ? { right: offsets.right, left: "auto" } : undefined
+      }
+    />
+  </>
+);
+
+const svgPathClasses =
+  "fill-slate-800 stroke-[#6366f1] stroke-2 group-hover:shadow-[0_0_15px_rgba(99,102,241,0.2)] transition-shadow";
 
 const RectangleNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
   return (
-    <div className="bg-slate-800 border-2 border-[#6366f1]/50 shadow-lg w-full h-full rounded-md text-center flex flex-col items-center justify-center transition-all hover:shadow-xl hover:shadow-[#6366f1]/10 relative">
+    <div className="w-full h-full relative group flex items-center justify-center">
       <NodeResizer
         color="#6366f1"
         isVisible={selected}
         minWidth={120}
         minHeight={60}
-        onResizeEnd={(_, { width, height }) => updateNode(id, { width, height })}
+        onResizeEnd={(_, { width, height }) =>
+          updateNode(id, { width, height })
+        }
       />
-      <Handle type="target" position={Position.Top} {...HandleStyles} />
-      <Handle
-        type="target"
-        position={Position.Left}
-        {...HandleStyles}
-        id="left-t"
-      />
-      <div className="px-4 py-2 text-sm font-bold text-slate-200 z-10 wrap-break-word">
+      <svg
+        className="absolute inset-0 w-full h-full"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+      >
+        <rect
+          x="2"
+          y="2"
+          width="96"
+          height="96"
+          rx="4"
+          className={svgPathClasses}
+        />
+      </svg>
+      <div className="px-4 py-2 text-sm font-bold text-slate-200 z-10 wrap-break-word relative text-center pointer-events-none">
         {String(data.label)}
       </div>
-      <Handle
-        type="source"
-        position={Position.Right}
-        {...HandleStyles}
-        id="right-s"
-      />
-      <Handle type="source" position={Position.Bottom} {...HandleStyles} />
+      {renderHandles()}
     </div>
   );
 };
@@ -63,32 +263,36 @@ const RectangleNode = ({ data, id, selected }: NodeProps<Node>) => {
 const SquareNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
   return (
-    <div className="bg-slate-800 border-2 border-[#6366f1]/50 shadow-lg w-full h-full rounded-md text-center flex flex-col items-center justify-center transition-all hover:shadow-xl hover:shadow-[#6366f1]/10 relative aspect-square">
+    <div className="w-full h-full aspect-square relative group flex items-center justify-center">
       <NodeResizer
         color="#6366f1"
         isVisible={selected}
         minWidth={100}
         minHeight={100}
         keepAspectRatio
-        onResizeEnd={(_, { width, height }) => updateNode(id, { width, height })}
+        onResizeEnd={(_, { width, height }) => {
+          const size = Math.max(width, height);
+          updateNode(id, { width: size, height: size });
+        }}
       />
-      <Handle type="target" position={Position.Top} {...HandleStyles} />
-      <Handle
-        type="target"
-        position={Position.Left}
-        {...HandleStyles}
-        id="left-t"
-      />
-      <div className="px-3 py-2 text-sm font-bold text-slate-200 wrap-break-word max-w-full overflow-hidden mt-2 z-10">
+      <svg
+        className="absolute inset-0 w-full h-full"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+      >
+        <rect
+          x="2"
+          y="2"
+          width="96"
+          height="96"
+          rx="4"
+          className={svgPathClasses}
+        />
+      </svg>
+      <div className="px-3 py-2 text-sm font-bold text-slate-200 wrap-break-word z-10 text-center pointer-events-none">
         {String(data.label)}
       </div>
-      <Handle
-        type="source"
-        position={Position.Right}
-        {...HandleStyles}
-        id="right-s"
-      />
-      <Handle type="source" position={Position.Bottom} {...HandleStyles} />
+      {renderHandles()}
     </div>
   );
 };
@@ -96,32 +300,29 @@ const SquareNode = ({ data, id, selected }: NodeProps<Node>) => {
 const CircleNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
   return (
-    <div className="bg-slate-800 border-2 border-[#6366f1]/50 shadow-lg w-full h-full rounded-full flex flex-col items-center justify-center text-center overflow-hidden transition-all hover:shadow-xl hover:shadow-[#6366f1]/10 relative aspect-square">
+    <div className="w-full h-full aspect-square relative group flex items-center justify-center">
       <NodeResizer
         color="#6366f1"
         isVisible={selected}
         minWidth={100}
         minHeight={100}
         keepAspectRatio
-        onResizeEnd={(_, { width, height }) => updateNode(id, { width, height })}
+        onResizeEnd={(_, { width, height }) => {
+          const size = Math.max(width, height);
+          updateNode(id, { width: size, height: size });
+        }}
       />
-      <Handle type="target" position={Position.Top} {...HandleStyles} />
-      <Handle
-        type="target"
-        position={Position.Left}
-        {...HandleStyles}
-        id="left-t"
-      />
-      <div className="px-6 py-2 text-sm font-bold text-slate-200 wrap-break-word max-w-full overflow-hidden mt-2 z-10">
+      <svg
+        className="absolute inset-0 w-full h-full"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+      >
+        <circle cx="50" cy="50" r="48" className={svgPathClasses} />
+      </svg>
+      <div className="px-4 py-2 text-sm font-bold text-slate-200 wrap-break-word z-10 text-center pointer-events-none">
         {String(data.label)}
       </div>
-      <Handle
-        type="source"
-        position={Position.Right}
-        {...HandleStyles}
-        id="right-s"
-      />
-      <Handle type="source" position={Position.Bottom} {...HandleStyles} />
+      {renderHandles()}
     </div>
   );
 };
@@ -129,44 +330,30 @@ const CircleNode = ({ data, id, selected }: NodeProps<Node>) => {
 const DiamondNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
   return (
-    <div className="relative flex items-center justify-center w-full h-full transition-all group pointer-events-none">
+    <div className="w-full h-full aspect-square relative group flex items-center justify-center">
       <NodeResizer
         color="#6366f1"
         isVisible={selected}
         minWidth={100}
         minHeight={100}
-        onResizeEnd={(_, { width, height }) => updateNode(id, { width, height })}
+        keepAspectRatio
+        onResizeEnd={(_, { width, height }) => {
+          const size = Math.max(width, height);
+          updateNode(id, { width: size, height: size });
+        }}
       />
-      <div className="absolute inset-2 bg-slate-800 border-2 border-[#6366f1]/50 rotate-45 group-hover:shadow-[0_0_15px_rgba(99,102,241,0.2)] transition-shadow pointer-events-auto"></div>
-      <Handle
-        type="target"
-        position={Position.Top}
-        {...HandleStyles}
-        className="top-2! bg-[#6366f1]! border-2 border-slate-800! pointer-events-auto"
-      />
-      <Handle
-        type="target"
-        position={Position.Left}
-        {...HandleStyles}
-        id="left-t"
-        className="left-2! bg-[#6366f1]! border-2 border-slate-800! pointer-events-auto"
-      />
-      <div className="px-2 py-2 text-sm font-bold text-slate-200 wrap-break-word max-w-[80%] z-10 text-center pointer-events-none">
+      <svg
+        className="absolute inset-0 w-full h-full"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+      >
+        <polygon points="50,2 98,50 50,98 2,50" className={svgPathClasses} />
+      </svg>
+      <div className="px-6 py-2 text-sm font-bold text-slate-200 wrap-break-word max-w-[80%] z-10 text-center pointer-events-none">
         {String(data.label)}
       </div>
-      <Handle
-        type="source"
-        position={Position.Right}
-        {...HandleStyles}
-        id="right-s"
-        className="right-2! bg-[#6366f1]! border-2 border-slate-800! pointer-events-auto"
-      />
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        {...HandleStyles}
-        className="bottom-2! bg-[#6366f1]! border-2 border-slate-800! pointer-events-auto"
-      />
+      {/* Aligning handles strictly with Tip polygon points */}
+      {renderHandles({ top: "2%", bottom: "2%", left: "2%", right: "2%" })}
     </div>
   );
 };
@@ -174,34 +361,27 @@ const DiamondNode = ({ data, id, selected }: NodeProps<Node>) => {
 const ParallelogramNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
   return (
-    <div className="relative flex items-center justify-center w-full h-full transition-all group">
+    <div className="w-full h-full relative group flex items-center justify-center">
       <NodeResizer
         color="#6366f1"
         isVisible={selected}
         minWidth={120}
         minHeight={60}
-        onResizeEnd={(_, { width, height }) => updateNode(id, { width, height })}
+        onResizeEnd={(_, { width, height }) =>
+          updateNode(id, { width, height })
+        }
       />
-      <div className="absolute inset-x-4 inset-y-0 bg-slate-800 border-2 border-[#6366f1]/50 -skew-x-12 shadow-lg group-hover:shadow-[0_0_15px_rgba(99,102,241,0.2)] transition-shadow"></div>
-      <Handle type="target" position={Position.Top} {...HandleStyles} />
-      <Handle
-        type="target"
-        position={Position.Left}
-        {...HandleStyles}
-        id="left-t"
-        className="left-4!"
-      />
-      <div className="px-6 py-4 text-sm font-bold text-slate-200 wrap-break-word max-w-[80%] z-10 text-center">
+      <svg
+        className="absolute inset-0 w-full h-full"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+      >
+        <polygon points="20,2 98,2 80,98 2,98" className={svgPathClasses} />
+      </svg>
+      <div className="px-6 py-2 text-sm font-bold text-slate-200 wrap-break-word max-w-[80%] z-10 text-center pointer-events-none">
         {String(data.label)}
       </div>
-      <Handle
-        type="source"
-        position={Position.Right}
-        {...HandleStyles}
-        id="right-s"
-        className="right-4!"
-      />
-      <Handle type="source" position={Position.Bottom} {...HandleStyles} />
+      {renderHandles({ left: "11%", right: "11%" })}
     </div>
   );
 };
@@ -209,47 +389,30 @@ const ParallelogramNode = ({ data, id, selected }: NodeProps<Node>) => {
 const HexagonNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
   return (
-    <div className="relative flex items-center justify-center w-full h-full transition-all group">
+    <div className="w-full h-full relative group flex items-center justify-center">
       <NodeResizer
         color="#6366f1"
         isVisible={selected}
         minWidth={120}
         minHeight={60}
-        onResizeEnd={(_, { width, height }) => updateNode(id, { width, height })}
+        onResizeEnd={(_, { width, height }) =>
+          updateNode(id, { width, height })
+        }
       />
-      <div
-        className="absolute inset-0 bg-[#6366f1]/50 shadow-lg group-hover:shadow-[0_0_15px_rgba(99,102,241,0.2)] transition-shadow"
-        style={{
-          clipPath:
-            "polygon(15% 0%, 85% 0%, 100% 50%, 85% 100%, 15% 100%, 0% 50%)",
-        }}
-      ></div>
-      <div
-        className="absolute inset-[2px] bg-slate-800"
-        style={{
-          clipPath:
-            "polygon(15% 0%, 85% 0%, 100% 50%, 85% 100%, 15% 100%, 0% 50%)",
-        }}
-      ></div>
-      <Handle type="target" position={Position.Top} {...HandleStyles} />
-      <Handle
-        type="target"
-        position={Position.Left}
-        {...HandleStyles}
-        id="left-t"
-        className="left-2!"
-      />
-      <div className="px-8 py-2 text-sm font-bold text-slate-200 wrap-break-word max-w-[70%] z-10 text-center">
+      <svg
+        className="absolute inset-0 w-full h-full"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+      >
+        <polygon
+          points="15,2 85,2 98,50 85,98 15,98 2,50"
+          className={svgPathClasses}
+        />
+      </svg>
+      <div className="px-8 py-2 text-sm font-bold text-slate-200 wrap-break-word max-w-[80%] z-10 text-center pointer-events-none">
         {String(data.label)}
       </div>
-      <Handle
-        type="source"
-        position={Position.Right}
-        {...HandleStyles}
-        id="right-s"
-        className="right-2!"
-      />
-      <Handle type="source" position={Position.Bottom} {...HandleStyles} />
+      {renderHandles({ left: "2%", right: "2%" })}
     </div>
   );
 };
@@ -257,56 +420,40 @@ const HexagonNode = ({ data, id, selected }: NodeProps<Node>) => {
 const CylinderNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
   return (
-    <div className="relative flex items-center justify-center w-full h-full transition-all group">
+    <div className="w-full h-full relative group flex flex-col items-center justify-center">
       <NodeResizer
         color="#6366f1"
         isVisible={selected}
         minWidth={100}
         minHeight={80}
-        onResizeEnd={(_, { width, height }) => updateNode(id, { width, height })}
+        onResizeEnd={(_, { width, height }) =>
+          updateNode(id, { width, height })
+        }
       />
-      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-        {/* Cylinder Body & Bottom Cap */}
-        <path 
-          d="M 5,15 V 85 A 45,10 0 0 0 95,85 V 15 A 45,10 0 0 1 5,15 Z" 
-          fill="#1e293b" 
-          stroke="#6366f1" 
+      <svg
+        className="absolute inset-0 w-full h-full"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+      >
+        <path
+          d="M 5,15 V 85 A 45,10 0 0 0 95,85 V 15 A 45,10 0 0 1 5,15 Z"
+          fill="#1e293b"
+          stroke="#6366f1"
           strokeWidth="2"
-          className="opacity-90 group-hover:stroke-indigo-400 group-hover:filter group-hover:drop-shadow-[0_0_8px_rgba(99,102,241,0.4)] transition-all"
+          className="opacity-90 transition-all group-hover:shadow-[0_0_15px_rgba(99,102,241,0.2)]"
         />
-        {/* Top Cap Ellipse */}
-        <path 
-          d="M 5,15 A 45,10 0 1 1 95,15 A 45,10 0 1 1 5,15 Z" 
-          fill="#1e293b" 
-          stroke="#6366f1" 
+        <path
+          d="M 5,15 A 45,10 0 1 1 95,15 A 45,10 0 1 1 5,15 Z"
+          fill="#1e293b"
+          stroke="#6366f1"
           strokeWidth="2"
-          className="opacity-90 group-hover:stroke-indigo-400 transition-all"
+          className="opacity-90 transition-all"
         />
       </svg>
-
-      <Handle type="target" position={Position.Top} {...HandleStyles} className="top-1! bg-[#6366f1]! border-2 border-slate-800! z-20" />
-      <Handle
-        type="target"
-        position={Position.Left}
-        {...HandleStyles}
-        id="left-t"
-        className="z-20"
-      />
-
-      <div className="flex-1 flex flex-col items-center justify-center py-4 px-4 h-full relative z-10">
-        <div className="text-sm text-center font-bold text-slate-200 wrap-break-word max-w-[100px] mt-2">
-          {String(data.label)}
-        </div>
+      <div className="px-4 py-4 mt-2 text-sm font-bold text-slate-200 wrap-break-word max-w-[80%] z-10 text-center pointer-events-none">
+        {String(data.label)}
       </div>
-
-      <Handle
-        type="source"
-        position={Position.Right}
-        {...HandleStyles}
-        id="right-s"
-        className="z-20"
-      />
-      <Handle type="source" position={Position.Bottom} {...HandleStyles} className="bottom-1! bg-[#6366f1]! border-2 border-slate-800! z-20" />
+      {renderHandles({ top: "15%", bottom: "5%", left: "5%", right: "5%" })}
     </div>
   );
 };
@@ -321,77 +468,112 @@ const nodeTypes = {
   cylinder: CylinderNode,
 };
 
-export const PaneCenterCanvas = () => {
-  const {
-    nodes: astNodes,
-    edges: astEdges,
-    diagramType,
-    updateNodePosition,
-    addEdge: storeAddEdge,
-  } = useDiagramStore();
+const edgeTypes = {
+  smoothstep: FloatingSmoothStepEdge,
+};
+
+// ========================
+// CANVAS INNER COMPONENT
+// ========================
+
+const PaneCenterCanvasInner = () => {
+  const astNodes = useDiagramStore((s) => s.nodes);
+  const astEdges = useDiagramStore((s) => s.edges);
+  const diagramType = useDiagramStore((s) => s.diagramType);
+  const layoutVersion = useDiagramStore((s) => s.layoutVersion);
+  const storeAddEdge = useDiagramStore((s) => s.addEdge);
+
   const [error, setError] = useState<string | null>(null);
 
-  // Native React Flow state
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   const flowWrapperRef = useRef<HTMLDivElement>(null);
+  const { fitView } = useReactFlow();
 
-  // Sync AST -> React Flow Canvas (Reacting to external form / code edits)
+  const layoutAppliedRef = useRef(false);
+  const prevLayoutVersionRef = useRef(layoutVersion);
+
   useEffect(() => {
     try {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setError(null);
 
-      const rfNodes: Node[] = astNodes.map((n: DfdNode, index: number) => ({
+      // Trigger re-layout only when layoutVersion changed
+      if (prevLayoutVersionRef.current !== layoutVersion) {
+        layoutAppliedRef.current = false;
+        prevLayoutVersionRef.current = layoutVersion;
+      }
+
+      let rfNodes: Node[] = astNodes.map((n: DfdNode, index: number) => ({
         id: n.id,
-        type: n.type, // maps to our custom nodeTypes
-        position: n.position || { x: 50 + index * 150, y: 100 }, // Fallback arranging
-        width: n.width,
-        height: n.height,
+        type: n.type,
+        position: n.position || { x: 50 + index * 200, y: 100 },
+        width:
+          n.width ||
+          (n.type === "circle" || n.type === "square" || n.type === "diamond"
+            ? 140
+            : 180),
+        height:
+          n.height ||
+          (n.type === "circle" || n.type === "square" || n.type === "diamond"
+            ? 140
+            : 60),
         data: { label: n.label },
+        draggable: true,
       }));
 
-      const rfEdges: Edge[] = astEdges.map((e: DfdEdge) => ({
+      let rfEdges: Edge[] = astEdges.map((e: DfdEdge) => ({
         id: e.id,
         source: e.source,
         target: e.target,
         label: e.label,
-        type: diagramType === "er" ? "straight" : "smoothstep",
-        animated: diagramType !== "er",
+        type: "smoothstep", // Resolves to FloatingSmoothStepEdge component
+        animated: false,
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: "#94a3b8",
+        },
         style: {
           stroke: "#94a3b8",
           strokeWidth: 2,
-          strokeDasharray: diagramType === "er" ? "5 5" : "0",
         },
-        labelStyle: { fill: "#e2e8f0", fontWeight: 500, fontSize: 12 },
-        labelBgStyle: { fill: "#1e293b", fillOpacity: 0.8 },
       }));
 
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+      // Only run Dagre if layout is clean
+      if (layoutAppliedRef.current === false) {
+        const { nodes: layoutedNodes, edges: layoutedEdges } =
+          getLayoutedElements(rfNodes, rfEdges, {
+            direction: diagramType === "er" ? "LR" : "TB",
+          });
+
+        rfNodes = layoutedNodes;
+        rfEdges = layoutedEdges;
+        layoutAppliedRef.current = true;
+
+        requestAnimationFrame(() => {
+          fitView({ duration: 400, padding: 0.15 });
+        });
+      }
+
       setNodes(rfNodes);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setEdges(rfEdges);
     } catch (err: unknown) {
       console.error("Canvas Mapping Error:", err);
       setError("Error mapping AST to Canvas");
     }
-  }, [astNodes, astEdges, diagramType, setNodes, setEdges]); // Only depends on AST, not text code
+  }, [
+    astNodes,
+    astEdges,
+    diagramType,
+    layoutVersion,
+    fitView,
+    setNodes,
+    setEdges,
+  ]);
 
-  // Handle Dragging
-  const onNodeDragStop = useCallback(
-    (_: React.MouseEvent, node: Node) => {
-      updateNodePosition(node.id, { x: node.position.x, y: node.position.y });
-    },
-    [updateNodePosition],
-  );
-
-  // Optional: Handle adding edges directly from canvas
   const onConnect = useCallback(
     (params: Connection) => {
-      // Create new edge in visual first
       setEdges((eds) => rfAddEdge(params, eds));
-      // Then sync to store
       if (params.source && params.target) {
         storeAddEdge({
           source: params.source,
@@ -432,14 +614,20 @@ export const PaneCenterCanvas = () => {
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
-          onNodeDragStop={onNodeDragStop}
           onConnect={onConnect}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           fitView
           minZoom={0.1}
           maxZoom={4}
           proOptions={{ hideAttribution: true }}
-          defaultEdgeOptions={{ type: "smoothstep" }}
+          defaultEdgeOptions={{
+            type: "smoothstep",
+            markerEnd: {
+              type: MarkerType.ArrowClosed,
+              color: "#94a3b8",
+            },
+          }}
         >
           <Background color="#334155" gap={16} />
           <Controls
@@ -449,5 +637,13 @@ export const PaneCenterCanvas = () => {
         </ReactFlow>
       </div>
     </div>
+  );
+};
+
+export const PaneCenterCanvas = () => {
+  return (
+    <ReactFlowProvider>
+      <PaneCenterCanvasInner />
+    </ReactFlowProvider>
   );
 };

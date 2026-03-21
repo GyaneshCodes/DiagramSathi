@@ -19,7 +19,7 @@ export const PaneLeftForm = () => {
     setProjectDescription,
     isGenerating,
     setIsGenerating,
-    setMermaidCode,
+    applyAIGeneratedDiagram,
     preferredDiagramType,
     setPreferredDiagramType,
   } = useDiagramStore();
@@ -28,11 +28,11 @@ export const PaneLeftForm = () => {
     if (!projectDescription.trim()) return;
     setIsGenerating(true);
     try {
-      const generatedCode = await generateDiagramFromDescription(
+      const result = await generateDiagramFromDescription(
         projectDescription,
         preferredDiagramType,
       );
-      setMermaidCode(generatedCode);
+      applyAIGeneratedDiagram(result.nodes, result.edges);
     } catch (error: unknown) {
       alert(
         error instanceof Error ? error.message : "Failed to generate diagram.",

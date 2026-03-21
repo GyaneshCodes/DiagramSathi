@@ -27,6 +27,9 @@ interface DiagramState {
   edges: DfdEdge[];
   diagramType: "dfd" | "er";
 
+  // Layout trigger — incremented only when a brand-new diagram is generated
+  layoutVersion: number;
+
   // AI Generation State
   projectDescription: string;
   isGenerating: boolean;
@@ -40,10 +43,13 @@ interface DiagramState {
   setIsGenerating: (isGenerating: boolean) => void;
   setPreferredDiagramType: (type: "auto" | "dfd" | "er") => void;
 
+  // AI Generation
+  applyAIGeneratedDiagram: (nodes: Omit<DfdNode, "position" | "width" | "height">[], edges: Omit<DfdEdge, "id">[]) => void;
+
   // Form Actions
   addNode: (node: Omit<DfdNode, "id">) => void;
   updateNode: (id: string, updates: Partial<DfdNode>) => void;
-  updateNodePosition: (id: string, position: { x: number; y: number }) => void; // New action
+  updateNodePosition: (id: string, position: { x: number; y: number }) => void;
   removeNode: (id: string) => void;
   addEdge: (edge: Omit<DfdEdge, "id">) => void;
   updateEdge: (id: string, updates: Partial<DfdEdge>) => void;
@@ -292,19 +298,22 @@ const parseMermaidToAst = (code: string) => {
     dagreGraph.setDefaultEdgeLabel(() => ({}));
     dagreGraph.setGraph({
       rankdir: isEr ? "LR" : "TB",
-      ranksep: isEr ? 180 : 120, // Increase vertical/horizontal spacing between layers
-      nodesep: isEr ? 100 : 80, // Increase spacing between nodes in the same layer
-      edgesep: 40, // Space between edges
-      marginx: 50,
-      marginy: 50,
+      ranksep: 80,
+      nodesep: 60,
+      edgesep: 30,
+      marginx: 40,
+      marginy: 40,
     });
 
-    // Provide larger estimated bounds for nodes to prevent overlapping text/edges
+    const getNodeDimensions = (n: DfdNode) => {
+      const w = n.width || (n.type === "circle" || n.type === "square" || n.type === "diamond" ? 140 : 180);
+      const h = n.height || (n.type === "circle" || n.type === "square" || n.type === "diamond" ? 140 : 60);
+      return { w, h };
+    };
+
     nodes.forEach((n) => {
-      // Use existing sizes if available, otherwise estimate
-      const width = n.width || (n.type === "circle" || n.type === "square" ? 140 : 160);
-      const height = n.height || (n.type === "circle" || n.type === "square" ? 140 : 80);
-      dagreGraph.setNode(n.id, { width, height });
+      const { w, h } = getNodeDimensions(n);
+      dagreGraph.setNode(n.id, { width: w, height: h });
     });
 
     edges.forEach((e) => {
@@ -316,12 +325,10 @@ const parseMermaidToAst = (code: string) => {
     nodes.forEach((n) => {
       const nodeWithPosition = dagreGraph.node(n.id);
       if (nodeWithPosition) {
-        // Must match the estimated widths above to center correctly
-        const width = n.width || (n.type === "circle" || n.type === "square" ? 140 : 160);
-        const height = n.height || (n.type === "circle" || n.type === "square" ? 140 : 80);
+        const { w, h } = getNodeDimensions(n);
         n.position = {
-          x: nodeWithPosition.x - width / 2,
-          y: nodeWithPosition.y - height / 2,
+          x: nodeWithPosition.x - w / 2,
+          y: nodeWithPosition.y - h / 2,
         };
       }
     });
@@ -337,6 +344,7 @@ const parseMermaidToAst = (code: string) => {
 export const useDiagramStore = create<DiagramState>((set, get) => ({
   diagramType: "dfd",
   mermaidCode: DEFAULT_CODE,
+  layoutVersion: 0,
   projectDescription: "",
   isGenerating: false,
   preferredDiagramType: "auto",
@@ -361,7 +369,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   ],
 
   setMermaidCode: (code) => {
-    set({ mermaidCode: code });
+    set({ mermaidCode: code, layoutVersion: get().layoutVersion + 1 });
     // Attempt bidirectional parse
     get().updateAstFromCode(code);
   },
@@ -384,9 +392,26 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
     set({ mermaidCode: newCode });
   },
 
+  applyAIGeneratedDiagram: (aiNodes, aiEdges) => {
+    const nodes: DfdNode[] = aiNodes.map((n, index) => ({
+      ...n,
+      id: n.id || `ai_${index}`,
+      label: n.label || n.id,
+      type: n.type || "rectangle",
+      width: 180,
+      height: 60,
+    }));
+    const edges: DfdEdge[] = aiEdges.map((e, index) => ({
+      ...e,
+      id: `e_ai_${index}_${Date.now()}`,
+    }));
+    set({ nodes, edges, diagramType: "dfd", layoutVersion: get().layoutVersion + 1 });
+    get().updateCodeFromAst(nodes, edges);
+  },
+
   addNode: (nodeData) => {
     const id = `n_${Date.now()}`;
-    const newNode = { ...nodeData, id, position: { x: 100, y: 100 } } as DfdNode;
+    const newNode = { ...nodeData, id, position: { x: 100, y: 100 }, width: 150, height: 50 } as DfdNode;
     const newNodes = [...get().nodes, newNode];
     set({ nodes: newNodes });
     get().updateCodeFromAst(newNodes, get().edges);
