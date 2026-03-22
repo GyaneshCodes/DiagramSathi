@@ -389,7 +389,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
 
   updateCodeFromAst: (nodes, edges) => {
     const newCode = generateMermaidFromAst(nodes, edges, get().diagramType);
-    set({ mermaidCode: newCode });
+    set({ mermaidCode: newCode, layoutVersion: get().layoutVersion + 1 });
   },
 
   applyAIGeneratedDiagram: (aiNodes, aiEdges) => {
@@ -398,8 +398,6 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       id: n.id || `ai_${index}`,
       label: n.label || n.id,
       type: n.type || "rectangle",
-      width: 180,
-      height: 60,
     }));
     const edges: DfdEdge[] = aiEdges.map((e, index) => ({
       ...e,
@@ -410,8 +408,13 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   },
 
   addNode: (nodeData) => {
-    const id = `n_${Date.now()}`;
-    const newNode = { ...nodeData, id, position: { x: 100, y: 100 }, width: 150, height: 50 } as DfdNode;
+    const existingIds = get().nodes.map(n => n.id);
+    let nextNum = 1;
+    while (existingIds.includes(`N${nextNum}`)) {
+      nextNum++;
+    }
+    const id = `N${nextNum}`;
+    const newNode = { ...nodeData, id, position: { x: 100, y: 100 } } as DfdNode;
     const newNodes = [...get().nodes, newNode];
     set({ nodes: newNodes });
     get().updateCodeFromAst(newNodes, get().edges);

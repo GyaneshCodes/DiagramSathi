@@ -45,13 +45,6 @@ export const PaneLeftForm = () => {
   return (
     <div className="flex flex-col h-1/3 md:h-full bg-slate-900/60 backdrop-blur-xl shadow-xl overflow-y-auto w-full md:w-64 lg:w-72 xl:w-80 2xl:w-96 border-b md:border-b-0 md:border-r border-slate-800/50 shrink-0">
       <div className="p-4 border-b border-slate-800/50 shrink-0 bg-transparent">
-        <h2 className="text-xl font-bold flex items-center gap-2 text-slate-100">
-          DiagramSathi
-        </h2>
-        <p className="text-sm text-slate-400 mt-1">Make All Kind of Diagrams</p>
-      </div>
-
-      <div className="p-4 border-b border-slate-800/50 shrink-0 bg-transparent">
         <h3 className="font-semibold text-slate-300 mb-2 text-sm uppercase tracking-wider">
           AI Grounding
         </h3>
@@ -84,7 +77,7 @@ export const PaneLeftForm = () => {
         <button
           onClick={handleSmartSuggest}
           disabled={isGenerating || !projectDescription.trim()}
-          className="w-full text-sm bg-[#6366f1] hover:bg-indigo-500 disabled:bg-indigo-900/50 disabled:text-indigo-300 disabled:border-transparent disabled:cursor-not-allowed text-white py-2 rounded-md transition-colors font-medium flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/20 mt-2"
+          className="w-full text-sm bg-[#6366f1] hover:bg-indigo-500 disabled:bg-indigo-900/50 disabled:text-indigo-300 disabled:border-transparent cursor-pointer disabled:cursor-not-allowed text-white py-2 rounded-md transition-colors font-medium flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/20 mt-2"
         >
           {isGenerating ? (
             <>
@@ -196,7 +189,7 @@ export const PaneLeftForm = () => {
                   </div>
                   <button
                     onClick={() => removeNode(n.id)}
-                    className="text-red-400 hover:bg-red-900/30 p-1.5 rounded-md transition-colors"
+                    className="text-red-400 hover:bg-red-900/30 p-1.5 rounded-md transition-colors cursor-pointer"
                     title="Remove Node"
                   >
                     <svg
@@ -219,7 +212,7 @@ export const PaneLeftForm = () => {
           </ul>
           <button
             onClick={() => addNode({ label: "New Node", type: "rectangle" })}
-            className="w-full text-sm border border-[#6366f1]/50 text-[#6366f1] hover:bg-[#6366f1]/10 hover:border-[#6366f1] py-1.5 rounded-md transition-colors font-medium flex items-center justify-center gap-1 mt-1"
+            className="w-full text-sm border border-[#6366f1]/50 text-[#6366f1] hover:bg-[#6366f1]/10 hover:border-[#6366f1] py-1.5 rounded-md transition-colors font-medium flex items-center justify-center gap-1 mt-1 cursor-pointer"
           >
             + Add Node
           </button>
@@ -242,15 +235,15 @@ export const PaneLeftForm = () => {
                       onChange={(ev) =>
                         updateEdge(e.id, { source: ev.target.value })
                       }
-                      className="flex-1 text-xs bg-slate-950/50 text-slate-200 border border-slate-700 rounded-md p-1 focus:outline-none focus:border-[#6366f1] focus:ring-1 focus:ring-[#6366f1] w-1/2"
+                      className="flex-1 text-xs bg-slate-950/50 text-slate-200 border border-slate-700 rounded-md p-1 focus:outline-none focus:border-[#6366f1] focus:ring-1 focus:ring-[#6366f1] w-1/2 cursor-pointer"
                     >
                       {nodes.map((n) => (
                         <option
                           key={`src-${n.id}`}
                           value={n.id}
-                          className="bg-slate-900 text-slate-200"
+                          className="bg-slate-900 text-slate-200 cursor-pointer"
                         >
-                          {n.id} ({n.label})
+                          {n.label} ({n.id})
                         </option>
                       ))}
                     </select>
@@ -260,15 +253,15 @@ export const PaneLeftForm = () => {
                       onChange={(ev) =>
                         updateEdge(e.id, { target: ev.target.value })
                       }
-                      className="flex-1 text-xs bg-slate-950/50 text-slate-200 border border-slate-700 rounded-md p-1 focus:outline-none focus:border-[#6366f1] focus:ring-1 focus:ring-[#6366f1] w-1/2"
+                      className="flex-1 text-xs bg-slate-950/50 text-slate-200 border border-slate-700 rounded-md p-1 focus:outline-none focus:border-[#6366f1] focus:ring-1 focus:ring-[#6366f1] w-1/2 cursor-pointer"
                     >
                       {nodes.map((n) => (
                         <option
                           key={`tgt-${n.id}`}
                           value={n.id}
-                          className="bg-slate-900 text-slate-200"
+                          className="bg-slate-900 text-slate-200 cursor-pointer"
                         >
-                          {n.id} ({n.label})
+                          {n.label} ({n.id})
                         </option>
                       ))}
                     </select>
@@ -285,7 +278,7 @@ export const PaneLeftForm = () => {
 
                   <button
                     onClick={() => removeEdge(e.id)}
-                    className="absolute right-[-8px] top-1 text-red-400 hover:bg-red-900/30 p-1.5 rounded-md transition-colors"
+                    className="absolute right-[-8px] top-1 text-red-400 hover:bg-red-900/30 p-1.5 rounded-md transition-colors cursor-pointer"
                     title="Remove Flow"
                   >
                     <svg
@@ -314,7 +307,7 @@ export const PaneLeftForm = () => {
                 label: "New Flow",
               })
             }
-            className="w-full text-sm border border-[#6366f1]/50 text-[#6366f1] hover:bg-[#6366f1]/10 hover:border-[#6366f1] disabled:opacity-50 disabled:cursor-not-allowed py-1.5 rounded-md transition-colors font-medium flex items-center justify-center gap-1 mt-1"
+            className="w-full text-sm border border-[#6366f1]/50 text-[#6366f1] hover:bg-[#6366f1]/10 hover:border-[#6366f1] disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed py-1.5 rounded-md transition-colors font-medium flex items-center justify-center gap-1 mt-1"
             disabled={nodes.length < 2}
           >
             + Add Flow

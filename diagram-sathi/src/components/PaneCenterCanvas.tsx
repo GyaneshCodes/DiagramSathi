@@ -36,7 +36,12 @@ import { getLayoutedElements } from "../utils/layoutGraph";
 
 // Helper to find the best cardinal position (Top, Bottom, Left, Right)
 // between two nodes based on their centers.
-function getEdgeParams(source: InternalNode, target: InternalNode) {
+function getEdgeParams(
+  source: InternalNode,
+  target: InternalNode,
+  outIndex: number,
+  inIndex: number
+) {
   const sourceCenter = {
     x: source.internals.positionAbsolute.x + (source.measured.width ?? 0) / 2,
     y: source.internals.positionAbsolute.y + (source.measured.height ?? 0) / 2,
@@ -52,20 +57,56 @@ function getEdgeParams(source: InternalNode, target: InternalNode) {
   let sourcePos = Position.Bottom;
   let targetPos = Position.Top;
 
-  // Determine cardinal directions based on the vector between centers
-  if (Math.abs(dx) > Math.abs(dy)) {
-    sourcePos = dx > 0 ? Position.Right : Position.Left;
-    targetPos = dx > 0 ? Position.Left : Position.Right;
+  const isHorizontalMajor = Math.abs(dx) > Math.abs(dy);
+
+  // Distribute SOURCE handles based on outIndex (number of outgoing edges)
+  if (isHorizontalMajor) {
+    const primaryS = dx > 0 ? Position.Right : Position.Left;
+    const sides = [
+      primaryS,
+      dy > 0 ? Position.Bottom : Position.Top,
+      dy > 0 ? Position.Top : Position.Bottom,
+      dx > 0 ? Position.Left : Position.Right
+    ];
+    sourcePos = sides[outIndex % 4];
   } else {
-    sourcePos = dy > 0 ? Position.Bottom : Position.Top;
-    targetPos = dy > 0 ? Position.Top : Position.Bottom;
+    const primaryS = dy > 0 ? Position.Bottom : Position.Top;
+    const sides = [
+      primaryS,
+      dx > 0 ? Position.Right : Position.Left,
+      dx > 0 ? Position.Left : Position.Right,
+      dy > 0 ? Position.Top : Position.Bottom
+    ];
+    sourcePos = sides[outIndex % 4];
+  }
+
+  // Distribute TARGET handles based on inIndex (number of incoming edges)
+  if (isHorizontalMajor) {
+    const primaryT = dx > 0 ? Position.Left : Position.Right;
+    const sides = [
+      primaryT,
+      dy > 0 ? Position.Top : Position.Bottom,
+      dy > 0 ? Position.Bottom : Position.Top,
+      dx > 0 ? Position.Right : Position.Left
+    ];
+    targetPos = sides[inIndex % 4];
+  } else {
+    const primaryT = dy > 0 ? Position.Top : Position.Bottom;
+    const sides = [
+      primaryT,
+      dx > 0 ? Position.Left : Position.Right,
+      dx > 0 ? Position.Right : Position.Left,
+      dy > 0 ? Position.Bottom : Position.Top
+    ];
+    targetPos = sides[inIndex % 4];
   }
 
   // Calculate coordinates of the center point of the chosen side
   const getSideCenter = (node: InternalNode, pos: Position) => {
-    const { x, y } = node.internals.positionAbsolute;
-    const w = node.measured.width ?? 0;
-    const h = node.measured.height ?? 0;
+    const x = node.internals?.positionAbsolute?.x ?? 0;
+    const y = node.internals?.positionAbsolute?.y ?? 0;
+    const w = node.measured?.width ?? 0;
+    const h = node.measured?.height ?? 0;
 
     switch (pos) {
       case Position.Top:
@@ -76,6 +117,8 @@ function getEdgeParams(source: InternalNode, target: InternalNode) {
         return { x, y: y + h / 2 };
       case Position.Right:
         return { x: x + w, y: y + h / 2 };
+      default:
+        return { x: x + w / 2, y: y + h / 2 }; // fallback to center
     }
   };
 
@@ -93,51 +136,67 @@ const FloatingSmoothStepEdge = ({
   label,
   markerEnd,
   style,
+  data,
 }: EdgeProps) => {
   const sourceNode = useInternalNode(source);
   const targetNode = useInternalNode(target);
 
-  if (!sourceNode || !targetNode) return null;
+  if (!sourceNode || !targetNode || !sourceNode.internals || !targetNode.internals) {
+    return null;
+  }
 
-  const { sx, sy, tx, ty, sourcePos, targetPos } = getEdgeParams(
-    sourceNode,
-    targetNode,
-  );
+  try {
+    const outIndex = (data?.outIndex as number) ?? 0;
+    const inIndex = (data?.inIndex as number) ?? 0;
 
-  const [edgePath, labelX, labelY] = getSmoothStepPath({
-    sourceX: sx,
-    sourceY: sy,
-    sourcePosition: sourcePos,
-    targetX: tx,
-    targetY: ty,
-    targetPosition: targetPos,
-  });
+    const { sx, sy, tx, ty, sourcePos, targetPos } = getEdgeParams(
+      sourceNode,
+      targetNode,
+      outIndex,
+      inIndex
+    );
 
-  return (
-    <>
-      <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={style} />
-      {label && (
-        <EdgeLabelRenderer>
-          <div
-            style={{
-              position: "absolute",
-              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-              padding: "4px 4px",
-              borderRadius: 4,
-              fontSize: 12,
-              fontWeight: 500,
-              background: "#1e293b",
-              color: "#e2e8f0",
-              pointerEvents: "all",
-            }}
-            className="nodrag nopan"
-          >
-            {label}
-          </div>
-        </EdgeLabelRenderer>
-      )}
-    </>
-  );
+    // Safety: prevent zero-length paths that can crash some renderers
+    if (sx === tx && sy === ty) return null;
+
+    const [edgePath, labelX, labelY] = getSmoothStepPath({
+      sourceX: sx,
+      sourceY: sy,
+      sourcePosition: sourcePos,
+      targetX: tx,
+      targetY: ty,
+      targetPosition: targetPos,
+    });
+
+    return (
+      <>
+        <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={style} />
+        {label && (
+          <EdgeLabelRenderer>
+            <div
+              style={{
+                position: "absolute",
+                transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+                padding: "4px 4px",
+                borderRadius: 4,
+                fontSize: 12,
+                fontWeight: 500,
+                background: "#1e293b",
+                color: "#e2e8f0",
+                pointerEvents: "all",
+              }}
+              className="nodrag nopan"
+            >
+              {label}
+            </div>
+          </EdgeLabelRenderer>
+        )}
+      </>
+    );
+  } catch (err) {
+    console.error("Floating Edge Render Error:", err);
+    return null;
+  }
 };
 
 // --- Custom Nodes for DFD Symbols --- //
@@ -252,7 +311,7 @@ const RectangleNode = ({ data, id, selected }: NodeProps<Node>) => {
           className={svgPathClasses}
         />
       </svg>
-      <div className="px-4 py-2 text-sm font-bold text-slate-200 z-10 wrap-break-word relative text-center pointer-events-none">
+      <div className="px-4 py-3 text-sm font-bold text-slate-200 z-10 wrap-break-word whitespace-normal relative text-center pointer-events-none max-w-[260px]">
         {String(data.label)}
       </div>
       {renderHandles()}
@@ -289,7 +348,7 @@ const SquareNode = ({ data, id, selected }: NodeProps<Node>) => {
           className={svgPathClasses}
         />
       </svg>
-      <div className="px-3 py-2 text-sm font-bold text-slate-200 wrap-break-word z-10 text-center pointer-events-none">
+      <div className="px-4 py-4 text-sm font-bold text-slate-200 wrap-break-word whitespace-normal z-10 text-center pointer-events-none max-w-[240px]">
         {String(data.label)}
       </div>
       {renderHandles()}
@@ -319,7 +378,7 @@ const CircleNode = ({ data, id, selected }: NodeProps<Node>) => {
       >
         <circle cx="50" cy="50" r="48" className={svgPathClasses} />
       </svg>
-      <div className="px-4 py-2 text-sm font-bold text-slate-200 wrap-break-word z-10 text-center pointer-events-none">
+      <div className="px-6 py-6 text-sm font-bold text-slate-200 wrap-break-word whitespace-normal z-10 text-center pointer-events-none max-w-[240px]">
         {String(data.label)}
       </div>
       {renderHandles()}
@@ -330,16 +389,14 @@ const CircleNode = ({ data, id, selected }: NodeProps<Node>) => {
 const DiamondNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
   return (
-    <div className="w-full h-full aspect-square relative group flex items-center justify-center">
+    <div className="w-full h-full relative group flex items-center justify-center">
       <NodeResizer
         color="#6366f1"
         isVisible={selected}
         minWidth={100}
         minHeight={100}
-        keepAspectRatio
         onResizeEnd={(_, { width, height }) => {
-          const size = Math.max(width, height);
-          updateNode(id, { width: size, height: size });
+          updateNode(id, { width, height });
         }}
       />
       <svg
@@ -349,7 +406,7 @@ const DiamondNode = ({ data, id, selected }: NodeProps<Node>) => {
       >
         <polygon points="50,2 98,50 50,98 2,50" className={svgPathClasses} />
       </svg>
-      <div className="px-6 py-2 text-sm font-bold text-slate-200 wrap-break-word max-w-[80%] z-10 text-center pointer-events-none">
+      <div className="px-10 py-10 text-sm font-bold text-slate-200 wrap-break-word whitespace-normal max-w-[85%] z-10 text-center pointer-events-none leading-tight">
         {String(data.label)}
       </div>
       {/* Aligning handles strictly with Tip polygon points */}
@@ -378,7 +435,7 @@ const ParallelogramNode = ({ data, id, selected }: NodeProps<Node>) => {
       >
         <polygon points="20,2 98,2 80,98 2,98" className={svgPathClasses} />
       </svg>
-      <div className="px-6 py-2 text-sm font-bold text-slate-200 wrap-break-word max-w-[80%] z-10 text-center pointer-events-none">
+      <div className="px-8 py-4 text-sm font-bold text-slate-200 wrap-break-word whitespace-normal max-w-[85%] z-10 text-center pointer-events-none">
         {String(data.label)}
       </div>
       {renderHandles({ left: "11%", right: "11%" })}
@@ -409,7 +466,7 @@ const HexagonNode = ({ data, id, selected }: NodeProps<Node>) => {
           className={svgPathClasses}
         />
       </svg>
-      <div className="px-8 py-2 text-sm font-bold text-slate-200 wrap-break-word max-w-[80%] z-10 text-center pointer-events-none">
+      <div className="px-10 py-4 text-sm font-bold text-slate-200 wrap-break-word whitespace-normal max-w-[85%] z-10 text-center pointer-events-none">
         {String(data.label)}
       </div>
       {renderHandles({ left: "2%", right: "2%" })}
@@ -450,7 +507,7 @@ const CylinderNode = ({ data, id, selected }: NodeProps<Node>) => {
           className="opacity-90 transition-all"
         />
       </svg>
-      <div className="px-4 py-4 mt-2 text-sm font-bold text-slate-200 wrap-break-word max-w-[80%] z-10 text-center pointer-events-none">
+      <div className="px-6 py-4 mt-2 text-sm font-bold text-slate-200 wrap-break-word whitespace-normal max-w-[85%] z-10 text-center pointer-events-none">
         {String(data.label)}
       </div>
       {renderHandles({ top: "15%", bottom: "5%", left: "5%", right: "5%" })}
@@ -508,36 +565,48 @@ const PaneCenterCanvasInner = () => {
         id: n.id,
         type: n.type,
         position: n.position || { x: 50 + index * 200, y: 100 },
-        width:
-          n.width ||
-          (n.type === "circle" || n.type === "square" || n.type === "diamond"
-            ? 140
-            : 180),
-        height:
-          n.height ||
-          (n.type === "circle" || n.type === "square" || n.type === "diamond"
-            ? 140
-            : 60),
+        width: n.width || (() => {
+          const isComp = (n.type === "circle" || n.type === "square" || n.type === "diamond");
+          const baseW = isComp ? 140 : 180;
+          if (n.label.length < 15) return Math.max(baseW, n.label.length * 9 + 40);
+          return Math.min(280, Math.max(baseW, n.label.length * 8 + 40));
+        })(),
+        height: n.height || (() => {
+          const isComp = (n.type === "circle" || n.type === "square" || n.type === "diamond");
+          const baseH = isComp ? 140 : 60;
+          const charsPerLine = n.label.length > 20 ? 25 : n.label.length;
+          const lines = Math.ceil(n.label.length / charsPerLine);
+          return Math.max(baseH, lines * 24 + (isComp ? 60 : 30));
+        })(),
         data: { label: n.label },
         draggable: true,
       }));
 
-      let rfEdges: Edge[] = astEdges.map((e: DfdEdge) => ({
-        id: e.id,
-        source: e.source,
-        target: e.target,
-        label: e.label,
-        type: "smoothstep", // Resolves to FloatingSmoothStepEdge component
-        animated: false,
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          color: "#94a3b8",
-        },
-        style: {
-          stroke: "#94a3b8",
-          strokeWidth: 2,
-        },
-      }));
+      let rfEdges: Edge[] = astEdges.map((e: DfdEdge) => {
+        const outEdges = astEdges.filter(o => o.source === e.source).sort((a,b) => a.id.localeCompare(b.id));
+        const outIndex = outEdges.findIndex(o => o.id === e.id);
+        
+        const inEdges = astEdges.filter(i => i.target === e.target).sort((a,b) => a.id.localeCompare(b.id));
+        const inIndex = inEdges.findIndex(i => i.id === e.id);
+
+        return {
+          id: e.id,
+          source: e.source,
+          target: e.target,
+          label: e.label,
+          type: "smoothstep", // Resolves to FloatingSmoothStepEdge component
+          animated: false,
+          data: { outIndex, inIndex },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color: "#94a3b8",
+          },
+          style: {
+            stroke: "#94a3b8",
+            strokeWidth: 2,
+          },
+        };
+      });
 
       // Only run Dagre if layout is clean
       if (layoutAppliedRef.current === false) {

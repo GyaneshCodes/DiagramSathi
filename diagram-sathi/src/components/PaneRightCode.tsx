@@ -11,9 +11,16 @@ export const PaneRightCode = () => {
           Mermaid.js Code
         </h2>
         <button
-          onClick={() => setMermaidCode(mermaidCode)}
-          className="text-slate-500 hover:text-[#6366f1] transition-colors"
-          title="Force Sync"
+          onClick={() => {
+            // Strip any positional and size metadata to force a clean layout
+            const cleanedCode = mermaidCode
+              .split("\n")
+              .filter((line) => !line.trim().startsWith("%% @nodePosition:") && !line.trim().startsWith("%% @nodeSize:"))
+              .join("\n");
+            setMermaidCode(cleanedCode);
+          }}
+          className="text-slate-500 hover:text-[#6366f1] transition-colors p-1 rounded-full hover:bg-slate-800/50"
+          title="Force Sync (Reset Layout)"
         >
           <RefreshCw size={16} />
         </button>
