@@ -22,7 +22,7 @@ export interface AIGeneratedDiagram {
 
 export const generateDiagramFromDescription = async (
   description: string,
-  preferredType: "auto" | "dfd" | "er" = "auto",
+  preferredType: "auto" | "dfd" | "er" | "sequence" = "auto",
 ): Promise<AIGeneratedDiagram> => {
   if (!ai) {
     throw new Error(
@@ -32,10 +32,12 @@ export const generateDiagramFromDescription = async (
 
   const typeInstruction =
     preferredType === "auto"
-      ? "Choose the most appropriate diagram type based on the description. Use DFD for system flows or ER for database schemas."
+      ? "Choose the most appropriate diagram type based on the description. Use DFD for system flows, ER for database schemas, or Sequence for temporal interactions."
       : preferredType === "dfd"
         ? "Generate a Data Flow Diagram (DFD)."
-        : "Generate an Entity-Relationship (ER) Diagram.";
+        : preferredType === "sequence"
+          ? "Generate a Sequence Diagram, focusing on chronological interactions between systems or actors."
+          : "Generate an Entity-Relationship (ER) Diagram.";
 
   const prompt = `
 You are an expert system architect and diagram generator.

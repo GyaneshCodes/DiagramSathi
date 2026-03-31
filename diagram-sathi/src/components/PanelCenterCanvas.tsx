@@ -22,6 +22,8 @@ import {
   addEdge as rfAddEdge,
   NodeResizer,
   MarkerType,
+  MiniMap,
+  SelectionMode,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
@@ -31,6 +33,16 @@ import {
 } from "../store/useDiagramStore";
 import { RefreshCw } from "lucide-react";
 import { getLayoutedElements } from "../utils/layoutGraph";
+import { TopToolbar } from "./ui/TopToolbar";
+
+/**
+ * PaneCenterCanvas Module
+ * 
+ * This file contains the React Flow implementation that renders the central 
+ * diagramming canvas. It is responsible for bidirectional synchronization with
+ * the Zustand store (`useDiagramStore`), dynamic auto-layout (Dagre), and handling
+ * complex UI interactions like edge routing and custom node shapes.
+ */
 
 // --- Custom Floating Edge Logic --- //
 
@@ -40,7 +52,7 @@ function getEdgeParams(
   source: InternalNode,
   target: InternalNode,
   outIndex: number,
-  inIndex: number
+  inIndex: number,
 ) {
   const sourceCenter = {
     x: source.internals.positionAbsolute.x + (source.measured.width ?? 0) / 2,
@@ -66,7 +78,7 @@ function getEdgeParams(
       primaryS,
       dy > 0 ? Position.Bottom : Position.Top,
       dy > 0 ? Position.Top : Position.Bottom,
-      dx > 0 ? Position.Left : Position.Right
+      dx > 0 ? Position.Left : Position.Right,
     ];
     sourcePos = sides[outIndex % 4];
   } else {
@@ -75,7 +87,7 @@ function getEdgeParams(
       primaryS,
       dx > 0 ? Position.Right : Position.Left,
       dx > 0 ? Position.Left : Position.Right,
-      dy > 0 ? Position.Top : Position.Bottom
+      dy > 0 ? Position.Top : Position.Bottom,
     ];
     sourcePos = sides[outIndex % 4];
   }
@@ -87,7 +99,7 @@ function getEdgeParams(
       primaryT,
       dy > 0 ? Position.Top : Position.Bottom,
       dy > 0 ? Position.Bottom : Position.Top,
-      dx > 0 ? Position.Right : Position.Left
+      dx > 0 ? Position.Right : Position.Left,
     ];
     targetPos = sides[inIndex % 4];
   } else {
@@ -96,7 +108,7 @@ function getEdgeParams(
       primaryT,
       dx > 0 ? Position.Left : Position.Right,
       dx > 0 ? Position.Right : Position.Left,
-      dy > 0 ? Position.Bottom : Position.Top
+      dy > 0 ? Position.Bottom : Position.Top,
     ];
     targetPos = sides[inIndex % 4];
   }
@@ -141,7 +153,12 @@ const FloatingSmoothStepEdge = ({
   const sourceNode = useInternalNode(source);
   const targetNode = useInternalNode(target);
 
-  if (!sourceNode || !targetNode || !sourceNode.internals || !targetNode.internals) {
+  if (
+    !sourceNode ||
+    !targetNode ||
+    !sourceNode.internals ||
+    !targetNode.internals
+  ) {
     return null;
   }
 
@@ -153,7 +170,7 @@ const FloatingSmoothStepEdge = ({
       sourceNode,
       targetNode,
       outIndex,
-      inIndex
+      inIndex,
     );
 
     // Safety: prevent zero-length paths that can crash some renderers
@@ -282,10 +299,12 @@ const renderHandles = (offsets?: {
 );
 
 const svgPathClasses =
-  "fill-slate-800 stroke-[#6366f1] stroke-2 group-hover:shadow-[0_0_15px_rgba(99,102,241,0.2)] transition-shadow";
+  "group-hover:shadow-[0_0_15px_rgba(99,102,241,0.2)] transition-shadow";
 
 const RectangleNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
+  const color = (data.color as string) || "#6366f1";
+
   return (
     <div className="w-full h-full relative group flex items-center justify-center">
       <NodeResizer
@@ -308,6 +327,9 @@ const RectangleNode = ({ data, id, selected }: NodeProps<Node>) => {
           width="96"
           height="96"
           rx="4"
+          fill="#1e293b"
+          stroke={color}
+          strokeWidth="2"
           className={svgPathClasses}
         />
       </svg>
@@ -321,8 +343,12 @@ const RectangleNode = ({ data, id, selected }: NodeProps<Node>) => {
 
 const SquareNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
+  const color = (data.color as string) || "#6366f1";
+
   return (
-    <div className="w-full h-full aspect-square relative group flex items-center justify-center">
+    <div
+      className="w-full h-full aspect-square relative group flex items-center justify-center"
+    >
       <NodeResizer
         color="#6366f1"
         isVisible={selected}
@@ -345,6 +371,9 @@ const SquareNode = ({ data, id, selected }: NodeProps<Node>) => {
           width="96"
           height="96"
           rx="4"
+          fill="#1e293b"
+          stroke={color}
+          strokeWidth="2"
           className={svgPathClasses}
         />
       </svg>
@@ -358,8 +387,12 @@ const SquareNode = ({ data, id, selected }: NodeProps<Node>) => {
 
 const CircleNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
+  const color = (data.color as string) || "#6366f1";
+
   return (
-    <div className="w-full h-full aspect-square relative group flex items-center justify-center">
+    <div
+      className="w-full h-full aspect-square relative group flex items-center justify-center"
+    >
       <NodeResizer
         color="#6366f1"
         isVisible={selected}
@@ -376,7 +409,15 @@ const CircleNode = ({ data, id, selected }: NodeProps<Node>) => {
         viewBox="0 0 100 100"
         preserveAspectRatio="none"
       >
-        <circle cx="50" cy="50" r="48" className={svgPathClasses} />
+        <circle
+          cx="50"
+          cy="50"
+          r="48"
+          fill="#1e293b"
+          stroke={color}
+          strokeWidth="2"
+          className={svgPathClasses}
+        />
       </svg>
       <div className="px-6 py-6 text-sm font-bold text-slate-200 wrap-break-word whitespace-normal z-10 text-center pointer-events-none max-w-[240px]">
         {String(data.label)}
@@ -388,6 +429,8 @@ const CircleNode = ({ data, id, selected }: NodeProps<Node>) => {
 
 const DiamondNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
+  const color = (data.color as string) || "#6366f1";
+
   return (
     <div className="w-full h-full relative group flex items-center justify-center">
       <NodeResizer
@@ -404,7 +447,13 @@ const DiamondNode = ({ data, id, selected }: NodeProps<Node>) => {
         viewBox="0 0 100 100"
         preserveAspectRatio="none"
       >
-        <polygon points="50,2 98,50 50,98 2,50" className={svgPathClasses} />
+        <polygon
+          points="50,2 98,50 50,98 2,50"
+          fill="#1e293b"
+          stroke={color}
+          strokeWidth="2"
+          className={svgPathClasses}
+        />
       </svg>
       <div className="px-10 py-10 text-sm font-bold text-slate-200 wrap-break-word whitespace-normal max-w-[85%] z-10 text-center pointer-events-none leading-tight">
         {String(data.label)}
@@ -476,8 +525,12 @@ const HexagonNode = ({ data, id, selected }: NodeProps<Node>) => {
 
 const CylinderNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
+  const color = (data.color as string) || "#6366f1";
+
   return (
-    <div className="w-full h-full relative group flex flex-col items-center justify-center">
+    <div
+      className="w-full h-full relative group flex flex-col items-center justify-center"
+    >
       <NodeResizer
         color="#6366f1"
         isVisible={selected}
@@ -495,14 +548,14 @@ const CylinderNode = ({ data, id, selected }: NodeProps<Node>) => {
         <path
           d="M 5,15 V 85 A 45,10 0 0 0 95,85 V 15 A 45,10 0 0 1 5,15 Z"
           fill="#1e293b"
-          stroke="#6366f1"
+          stroke={color}
           strokeWidth="2"
           className="opacity-90 transition-all group-hover:shadow-[0_0_15px_rgba(99,102,241,0.2)]"
         />
         <path
           d="M 5,15 A 45,10 0 1 1 95,15 A 45,10 0 1 1 5,15 Z"
           fill="#1e293b"
-          stroke="#6366f1"
+          stroke={color}
           strokeWidth="2"
           className="opacity-90 transition-all"
         />
@@ -540,6 +593,12 @@ const PaneCenterCanvasInner = () => {
   const layoutVersion = useDiagramStore((s) => s.layoutVersion);
   const storeAddEdge = useDiagramStore((s) => s.addEdge);
 
+  const activeTool = useDiagramStore((s) => s.activeTool);
+  const selectedNodeId = useDiagramStore((s) => s.selectedNodeId);
+  const selectedEdgeId = useDiagramStore((s) => s.selectedEdgeId);
+  const setSelectedNodeId = useDiagramStore((s) => s.setSelectedNodeId);
+  const setSelectedEdgeId = useDiagramStore((s) => s.setSelectedEdgeId);
+
   const [error, setError] = useState<string | null>(null);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
@@ -565,29 +624,44 @@ const PaneCenterCanvasInner = () => {
         id: n.id,
         type: n.type,
         position: n.position || { x: 50 + index * 200, y: 100 },
-        width: n.width || (() => {
-          const isComp = (n.type === "circle" || n.type === "square" || n.type === "diamond");
-          const baseW = isComp ? 140 : 180;
-          if (n.label.length < 15) return Math.max(baseW, n.label.length * 9 + 40);
-          return Math.min(280, Math.max(baseW, n.label.length * 8 + 40));
-        })(),
-        height: n.height || (() => {
-          const isComp = (n.type === "circle" || n.type === "square" || n.type === "diamond");
-          const baseH = isComp ? 140 : 60;
-          const charsPerLine = n.label.length > 20 ? 25 : n.label.length;
-          const lines = Math.ceil(n.label.length / charsPerLine);
-          return Math.max(baseH, lines * 24 + (isComp ? 60 : 30));
-        })(),
-        data: { label: n.label },
+        width:
+          n.width ||
+          (() => {
+            const isComp =
+              n.type === "circle" ||
+              n.type === "square" ||
+              n.type === "diamond";
+            const baseW = isComp ? 140 : 180;
+            if (n.label.length < 15)
+              return Math.max(baseW, n.label.length * 9 + 40);
+            return Math.min(280, Math.max(baseW, n.label.length * 8 + 40));
+          })(),
+        height:
+          n.height ||
+          (() => {
+            const isComp =
+              n.type === "circle" ||
+              n.type === "square" ||
+              n.type === "diamond";
+            const baseH = isComp ? 140 : 60;
+            const charsPerLine = n.label.length > 20 ? 25 : n.label.length;
+            const lines = Math.ceil(n.label.length / charsPerLine);
+            return Math.max(baseH, lines * 24 + (isComp ? 60 : 30));
+          })(),
+        data: { label: n.label, color: n.color },
         draggable: true,
       }));
 
       let rfEdges: Edge[] = astEdges.map((e: DfdEdge) => {
-        const outEdges = astEdges.filter(o => o.source === e.source).sort((a,b) => a.id.localeCompare(b.id));
-        const outIndex = outEdges.findIndex(o => o.id === e.id);
-        
-        const inEdges = astEdges.filter(i => i.target === e.target).sort((a,b) => a.id.localeCompare(b.id));
-        const inIndex = inEdges.findIndex(i => i.id === e.id);
+        const outEdges = astEdges
+          .filter((o) => o.source === e.source)
+          .sort((a, b) => a.id.localeCompare(b.id));
+        const outIndex = outEdges.findIndex((o) => o.id === e.id);
+
+        const inEdges = astEdges
+          .filter((i) => i.target === e.target)
+          .sort((a, b) => a.id.localeCompare(b.id));
+        const inIndex = inEdges.findIndex((i) => i.id === e.id);
 
         return {
           id: e.id,
@@ -595,7 +669,7 @@ const PaneCenterCanvasInner = () => {
           target: e.target,
           label: e.label,
           type: "smoothstep", // Resolves to FloatingSmoothStepEdge component
-          animated: false,
+          animated: e.animated,
           data: { outIndex, inIndex },
           markerEnd: {
             type: MarkerType.ArrowClosed,
@@ -604,6 +678,12 @@ const PaneCenterCanvasInner = () => {
           style: {
             stroke: "#94a3b8",
             strokeWidth: 2,
+            strokeDasharray:
+              e.style === "dashed"
+                ? "5 5"
+                : e.style === "dotted"
+                  ? "1 4"
+                  : undefined,
           },
         };
       });
@@ -640,6 +720,18 @@ const PaneCenterCanvasInner = () => {
     setEdges,
   ]);
 
+  useEffect(() => {
+    setNodes((nds) =>
+      nds.map((n) => ({ ...n, selected: n.id === selectedNodeId })),
+    );
+  }, [selectedNodeId, setNodes]);
+
+  useEffect(() => {
+    setEdges((eds) =>
+      eds.map((e) => ({ ...e, selected: e.id === selectedEdgeId })),
+    );
+  }, [selectedEdgeId, setEdges]);
+
   const onConnect = useCallback(
     (params: Connection) => {
       setEdges((eds) => rfAddEdge(params, eds));
@@ -654,14 +746,35 @@ const PaneCenterCanvasInner = () => {
     [setEdges, storeAddEdge],
   );
 
+  const onNodeClick = useCallback(
+    (_: React.MouseEvent, node: Node) => {
+      setSelectedNodeId(node.id);
+    },
+    [setSelectedNodeId],
+  );
+
+  const onEdgeClick = useCallback(
+    (_: React.MouseEvent, edge: Edge) => {
+      setSelectedEdgeId(edge.id);
+    },
+    [setSelectedEdgeId],
+  );
+
+  const onPaneClick = useCallback(() => {
+    setSelectedNodeId(null);
+    setSelectedEdgeId(null);
+  }, [setSelectedNodeId, setSelectedEdgeId]);
+
   return (
-    <div className="flex-1 bg-slate-900/40 backdrop-blur-md relative h-1/3 md:h-full flex flex-col min-h-[300px] md:min-h-0 border-x border-slate-800/50">
-      <div className="absolute top-4 left-4 z-10 bg-slate-900/80 backdrop-blur-md shadow-lg rounded-md px-3 py-1.5 border border-slate-700/50 flex items-center gap-2">
-        <span className="text-sm font-medium text-slate-200 flex items-center gap-2">
+    <div className="flex-1 bg-bg relative h-1/3 md:h-full flex flex-col min-h-[300px] md:min-h-0 border-x border-border/80">
+      <div className="absolute top-4 left-4 z-10 bg-panel/80 backdrop-blur-md shadow-lg rounded-md px-3 py-1.5 border border-border/50 flex items-center gap-2">
+        <span className="text-sm font-medium text-neutral flex items-center gap-2">
           Visual Canvas
           <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]"></span>
         </span>
       </div>
+
+      <TopToolbar />
 
       {error ? (
         <div className="absolute inset-0 z-20 flex items-center justify-center p-8 bg-slate-950/80 backdrop-blur-sm">
@@ -684,8 +797,15 @@ const PaneCenterCanvasInner = () => {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          onNodeClick={onNodeClick}
+          onEdgeClick={onEdgeClick}
+          onPaneClick={onPaneClick}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
+          panOnDrag={activeTool === "pan"}
+          selectionOnDrag={activeTool === "cursor"}
+          panActivationKeyCode="Space"
+          selectionMode={SelectionMode.Partial}
           fitView
           minZoom={0.1}
           maxZoom={4}
@@ -699,9 +819,14 @@ const PaneCenterCanvasInner = () => {
           }}
         >
           <Background color="#334155" gap={16} />
+          <MiniMap
+            className="bg-panel! border-border/80! rounded-md shadow-lg"
+            maskColor="rgba(0,0,0,0.3)"
+            nodeColor="var(--primary)"
+          />
           <Controls
             showInteractive={true}
-            className="[&>button]:bg-slate-900! [&>button]:border-b-slate-800! [&>button]:fill-slate-300! hover:[&>button]:bg-slate-800! shadow-lg border border-slate-800 rounded-md overflow-hidden"
+            className="[&>button]:bg-panel! [&>button]:border-b-border! [&>button]:fill-neutral! hover:[&>button]:bg-border! shadow-lg border border-border rounded-md overflow-hidden"
           />
         </ReactFlow>
       </div>

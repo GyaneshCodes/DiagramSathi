@@ -5,10 +5,18 @@ import dagre from "dagre";
 export interface DfdNode {
   id: string;
   label: string;
-  type: "rectangle" | "square" | "circle" | "diamond" | "parallelogram" | "hexagon" | "cylinder";
-  position?: { x: number; y: number }; // Added for bidirectional sync
+  type:
+    | "rectangle"
+    | "square"
+    | "circle"
+    | "diamond"
+    | "parallelogram"
+    | "hexagon"
+    | "cylinder";
+  position?: { x: number; y: number };
   width?: number;
   height?: number;
+  color?: string; // Hex color
 }
 
 export interface DfdEdge {
@@ -16,6 +24,8 @@ export interface DfdEdge {
   source: string;
   target: string;
   label: string;
+  style?: "solid" | "dashed" | "dotted";
+  animated?: boolean;
 }
 
 interface DiagramState {
@@ -33,18 +43,39 @@ interface DiagramState {
   // AI Generation State
   projectDescription: string;
   isGenerating: boolean;
-  preferredDiagramType: "auto" | "dfd" | "er";
+  preferredDiagramType: "auto" | "dfd" | "er" | "sequence";
+
+  // UI State (Phase 1)
+  selectedNodeId: string | null;
+  selectedEdgeId: string | null;
+  activeTool: "cursor" | "pan";
+  direction: "TB" | "LR";
+  leftPanelCollapsed: boolean;
+  rightPanelCollapsed: boolean;
+  showCodeInRightPanel: boolean;
 
   // Actions
   setMermaidCode: (code: string) => void;
   updateAstFromCode: (code: string) => void;
   updateCodeFromAst: (nodes: DfdNode[], edges: DfdEdge[]) => void;
+  forceLayoutRefresh: () => void;
   setProjectDescription: (desc: string) => void;
   setIsGenerating: (isGenerating: boolean) => void;
-  setPreferredDiagramType: (type: "auto" | "dfd" | "er") => void;
+  setPreferredDiagramType: (type: "auto" | "dfd" | "er" | "sequence") => void;
+
+  setSelectedNodeId: (id: string | null) => void;
+  setSelectedEdgeId: (id: string | null) => void;
+  setActiveTool: (tool: DiagramState["activeTool"]) => void;
+  setDirection: (direction: DiagramState["direction"]) => void;
+  setLeftPanelCollapsed: (collapsed: boolean) => void;
+  setRightPanelCollapsed: (collapsed: boolean) => void;
+  setShowCodeInRightPanel: (show: boolean) => void;
 
   // AI Generation
-  applyAIGeneratedDiagram: (nodes: Omit<DfdNode, "position" | "width" | "height">[], edges: Omit<DfdEdge, "id">[]) => void;
+  applyAIGeneratedDiagram: (
+    nodes: Omit<DfdNode, "position" | "width" | "height">[],
+    edges: Omit<DfdEdge, "id">[],
+  ) => void;
 
   // Form Actions
   addNode: (node: Omit<DfdNode, "id">) => void;
@@ -60,11 +91,11 @@ const DEFAULT_CODE = `graph TD
   %% DiagramSathi Generated DFD
   User[User] -->|Input Data| System((Main System))
   System -->|Store Data| DB[(Database)]
-  %% @nodePosition: User 100 100
+  %% @nodePosition: User 300 100
   %% @nodeType: User rectangle
-  %% @nodePosition: System 300 100
+  %% @nodePosition: System 300 350
   %% @nodeType: System circle
-  %% @nodePosition: DB 500 100
+  %% @nodePosition: DB 300 650
   %% @nodeType: DB cylinder
 `;
 
@@ -74,6 +105,7 @@ const generateMermaidFromAst = (
   nodes: DfdNode[],
   edges: DfdEdge[],
   diagramType: "dfd" | "er" = "dfd",
+  direction: "TB" | "LR" = "TB",
 ): string => {
   if (diagramType === "er") {
     let code = "erDiagram\n  %% DiagramSathi Generated ER\n";
@@ -99,20 +131,31 @@ const generateMermaidFromAst = (
     return code;
   }
 
-  let code = "graph TD\n  %% DiagramSathi Generated Diagram\n";
+  let code = `graph ${direction}\n  %% DiagramSathi Generated Diagram\n`;
 
   nodes.forEach((n) => {
     let brackets = ["[", "]"];
     switch (n.type) {
-      case "circle": brackets = ["((", "))"]; break;
-      case "cylinder": brackets = ["[(", ")]"]; break;
-      case "diamond": brackets = ["{", "}"]; break;
-      case "hexagon": brackets = ["{{", "}}"]; break;
-      case "parallelogram": brackets = ["[/", "/]"]; break;
-      case "rectangle": 
-      case "square": 
+      case "circle":
+        brackets = ["((", "))"];
+        break;
+      case "cylinder":
+        brackets = ["[(", ")]"];
+        break;
+      case "diamond":
+        brackets = ["{", "}"];
+        break;
+      case "hexagon":
+        brackets = ["{{", "}}"];
+        break;
+      case "parallelogram":
+        brackets = ["[/", "/]"];
+        break;
+      case "rectangle":
+      case "square":
       default:
-        brackets = ["[", "]"]; break;
+        brackets = ["[", "]"];
+        break;
     }
     code += `  ${n.id}${brackets[0]}${n.label}${brackets[1]}\n`;
   });
@@ -127,8 +170,20 @@ const generateMermaidFromAst = (
       code += `  %% @nodePosition: ${n.id} ${Math.round(n.position.x)} ${Math.round(n.position.y)}\n`;
     }
     code += `  %% @nodeType: ${n.id} ${n.type}\n`;
+    if (n.color) {
+      code += `  %% @nodeColor: ${n.id} ${n.color}\n`;
+    }
     if (n.width && n.height) {
       code += `  %% @nodeSize: ${n.id} ${Math.round(n.width)} ${Math.round(n.height)}\n`;
+    }
+  });
+
+  edges.forEach((e) => {
+    if (e.style) {
+      code += `  %% @edgeStyle: ${e.id} ${e.style}\n`;
+    }
+    if (e.animated) {
+      code += `  %% @edgeAnimated: ${e.id} true\n`;
     }
   });
 
@@ -143,6 +198,8 @@ const parseMermaidToAst = (code: string) => {
   const types: Record<string, string> = {};
 
   const isEr = code.trim().startsWith("erDiagram");
+  const directionStr =
+    code.match(/graph\s+(TD|LR|BT|RL)/i)?.[1].toUpperCase() || "TB";
   const lines = code.split("\n");
 
   const posRegex =
@@ -151,6 +208,12 @@ const parseMermaidToAst = (code: string) => {
     /^\s*%%\s*@nodeType:\s*([a-zA-Z0-9_]+)\s+([a-zA-Z0-9_]+)\s*$/;
   const sizeRegex =
     /^\s*%%\s*@nodeSize:\s*([a-zA-Z0-9_]+)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s*$/;
+  const colorRegex =
+    /^\s*%%\s*@nodeColor:\s*([a-zA-Z0-9_]+)\s+(#[a-fA-F0-9]{3,8}|[a-zA-Z]+)\s*$/;
+  const edgeStyleRegex =
+    /^\s*%%\s*@edgeStyle:\s*([a-zA-Z0-9_]+)\s+([a-zA-Z]+)\s*$/;
+  const edgeAnimatedRegex =
+    /^\s*%%\s*@edgeAnimated:\s*([a-zA-Z0-9_]+)\s+true\s*$/;
   // Matches edges
   const dfdEdgeRegex =
     /([a-zA-Z0-9_]+)(?:\[.*?\]|\(\(.*?\)\)|\[\(.*?\)\]|\{\{.*?\}\}|\{.*?\}|\[\/.*?\/\]|\[\\.*?\\\])?\s*(?:-->|---|-.->|==>)\s*(?:\|([^|]*)\|\s*)?([a-zA-Z0-9_]+)/;
@@ -192,7 +255,31 @@ const parseMermaidToAst = (code: string) => {
       return;
     }
 
-    if (line.trim().startsWith("%")) return;
+    const colorMatch = line.match(colorRegex);
+    if (colorMatch) {
+      const id = colorMatch[1];
+      const color = colorMatch[2];
+      const node = nodesMap.get(id);
+      if (node) node.color = color;
+      return;
+    }
+
+    const edgeStyleMatch = line.match(edgeStyleRegex);
+    if (edgeStyleMatch) {
+      const edgeId = edgeStyleMatch[1];
+      const style = edgeStyleMatch[2] as any;
+      const edge = edges.find((e) => e.id === edgeId);
+      if (edge) edge.style = style;
+      return;
+    }
+
+    const edgeAnimatedMatch = line.match(edgeAnimatedRegex);
+    if (edgeAnimatedMatch) {
+      const edgeId = edgeAnimatedMatch[1];
+      const edge = edges.find((e) => e.id === edgeId);
+      if (edge) edge.animated = true;
+      return;
+    }
 
     if (isEr) {
       const erMatch = line.match(erEdgeRegex);
@@ -209,9 +296,17 @@ const parseMermaidToAst = (code: string) => {
         });
 
         if (!nodesMap.has(source))
-          nodesMap.set(source, { id: source, label: source, type: "rectangle" });
+          nodesMap.set(source, {
+            id: source,
+            label: source,
+            type: "rectangle",
+          });
         if (!nodesMap.has(target))
-          nodesMap.set(target, { id: target, label: target, type: "rectangle" });
+          nodesMap.set(target, {
+            id: target,
+            label: target,
+            type: "rectangle",
+          });
       } else {
         const entityMatch = line.match(/^\s*([a-zA-Z0-9_-]+)\s*\{/);
         if (entityMatch) {
@@ -236,9 +331,17 @@ const parseMermaidToAst = (code: string) => {
         });
 
         if (!nodesMap.has(source))
-          nodesMap.set(source, { id: source, label: source, type: "rectangle" });
+          nodesMap.set(source, {
+            id: source,
+            label: source,
+            type: "rectangle",
+          });
         if (!nodesMap.has(target))
-          nodesMap.set(target, { id: target, label: target, type: "rectangle" });
+          nodesMap.set(target, {
+            id: target,
+            label: target,
+            type: "rectangle",
+          });
       }
 
       // Parse DFD node definitions
@@ -246,19 +349,33 @@ const parseMermaidToAst = (code: string) => {
       let ndMatch;
       while ((ndMatch = nodeDefRegex.exec(line)) !== null) {
         const id = ndMatch[1];
-        
+
         // 1=id, 2=cylinder, 3=circle, 4=hexagon, 5=diamond, 6=parallelogram, 7=parallelogramAlt, 8=trapezoid, 9=trapezoidAlt, 10=rectangle
         let type: DfdNode["type"] = "rectangle";
         let label = id;
 
-        if (ndMatch[2] !== undefined) { type = "cylinder"; label = ndMatch[2]; }
-        else if (ndMatch[3] !== undefined) { type = "circle"; label = ndMatch[3]; }
-        else if (ndMatch[4] !== undefined) { type = "hexagon"; label = ndMatch[4]; }
-        else if (ndMatch[5] !== undefined) { type = "diamond"; label = ndMatch[5]; }
-        else if (ndMatch[6] !== undefined || ndMatch[7] !== undefined) { type = "parallelogram"; label = ndMatch[6] || ndMatch[7]; }
-        else if (ndMatch[8] !== undefined || ndMatch[9] !== undefined || ndMatch[10] !== undefined) { 
-          type = "rectangle"; 
-          label = ndMatch[8] || ndMatch[9] || ndMatch[10]; 
+        if (ndMatch[2] !== undefined) {
+          type = "cylinder";
+          label = ndMatch[2];
+        } else if (ndMatch[3] !== undefined) {
+          type = "circle";
+          label = ndMatch[3];
+        } else if (ndMatch[4] !== undefined) {
+          type = "hexagon";
+          label = ndMatch[4];
+        } else if (ndMatch[5] !== undefined) {
+          type = "diamond";
+          label = ndMatch[5];
+        } else if (ndMatch[6] !== undefined || ndMatch[7] !== undefined) {
+          type = "parallelogram";
+          label = ndMatch[6] || ndMatch[7];
+        } else if (
+          ndMatch[8] !== undefined ||
+          ndMatch[9] !== undefined ||
+          ndMatch[10] !== undefined
+        ) {
+          type = "rectangle";
+          label = ndMatch[8] || ndMatch[9] || ndMatch[10];
         }
 
         if (nodesMap.has(id)) {
@@ -297,17 +414,24 @@ const parseMermaidToAst = (code: string) => {
     const dagreGraph = new dagre.graphlib.Graph();
     dagreGraph.setDefaultEdgeLabel(() => ({}));
     dagreGraph.setGraph({
-      rankdir: isEr ? "LR" : "TB",
-      ranksep: 80,
-      nodesep: 60,
-      edgesep: 30,
-      marginx: 40,
-      marginy: 40,
+      ranksep: 120,
+      nodesep: 100,
+      edgesep: 40,
+      marginx: 50,
+      marginy: 50,
     });
 
     const getNodeDimensions = (n: DfdNode) => {
-      const w = n.width || (n.type === "circle" || n.type === "square" || n.type === "diamond" ? 140 : 180);
-      const h = n.height || (n.type === "circle" || n.type === "square" || n.type === "diamond" ? 140 : 60);
+      const w =
+        n.width ||
+        (n.type === "circle" || n.type === "square" || n.type === "diamond"
+          ? 140
+          : 180);
+      const h =
+        n.height ||
+        (n.type === "circle" || n.type === "square" || n.type === "diamond"
+          ? 140
+          : 60);
       return { w, h };
     };
 
@@ -338,6 +462,7 @@ const parseMermaidToAst = (code: string) => {
     nodes,
     edges,
     diagramType: isEr ? ("er" as const) : ("dfd" as const),
+    direction: directionStr as "TB" | "LR",
   };
 };
 
@@ -348,19 +473,31 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   projectDescription: "",
   isGenerating: false,
   preferredDiagramType: "auto",
+  selectedNodeId: null,
+  selectedEdgeId: null,
+  activeTool: "cursor",
+  direction: "TB",
+  leftPanelCollapsed: false,
+  rightPanelCollapsed: false,
+  showCodeInRightPanel: false,
   nodes: [
-    { id: "User", label: "User", type: "rectangle", position: { x: 100, y: 100 } },
+    {
+      id: "User",
+      label: "User",
+      type: "rectangle",
+      position: { x: 300, y: 100 },
+    },
     {
       id: "System",
       label: "Main System",
       type: "circle",
-      position: { x: 300, y: 100 },
+      position: { x: 300, y: 350 },
     },
     {
       id: "DB",
       label: "Database",
       type: "cylinder",
-      position: { x: 500, y: 100 },
+      position: { x: 300, y: 650 },
     },
   ],
   edges: [
@@ -378,17 +515,40 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   setIsGenerating: (isGenerating) => set({ isGenerating }),
   setPreferredDiagramType: (type) => set({ preferredDiagramType: type }),
 
+  setSelectedNodeId: (id) => set({ selectedNodeId: id, selectedEdgeId: null }),
+  setSelectedEdgeId: (id) => set({ selectedEdgeId: id, selectedNodeId: null }),
+  setActiveTool: (tool) => set({ activeTool: tool }),
+  setDirection: (dir) => {
+    set({ direction: dir });
+    get().updateCodeFromAst(get().nodes, get().edges);
+  },
+  setLeftPanelCollapsed: (collapsed) => set({ leftPanelCollapsed: collapsed }),
+  setRightPanelCollapsed: (collapsed) =>
+    set({ rightPanelCollapsed: collapsed }),
+  setShowCodeInRightPanel: (show) => set({ showCodeInRightPanel: show }),
+
   updateAstFromCode: (code) => {
     const {
       nodes: parsedNodes,
       edges: parsedEdges,
       diagramType,
+      direction,
     } = parseMermaidToAst(code);
-    set({ nodes: parsedNodes, edges: parsedEdges, diagramType });
+    set({
+      nodes: parsedNodes,
+      edges: parsedEdges,
+      diagramType,
+      direction: direction || get().direction,
+    });
   },
 
   updateCodeFromAst: (nodes, edges) => {
-    const newCode = generateMermaidFromAst(nodes, edges, get().diagramType);
+    const newCode = generateMermaidFromAst(
+      nodes,
+      edges,
+      get().diagramType,
+      get().direction,
+    );
     set({ mermaidCode: newCode, layoutVersion: get().layoutVersion + 1 });
   },
 
@@ -403,18 +563,27 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       ...e,
       id: `e_ai_${index}_${Date.now()}`,
     }));
-    set({ nodes, edges, diagramType: "dfd", layoutVersion: get().layoutVersion + 1 });
+    set({
+      nodes,
+      edges,
+      diagramType: "dfd",
+      layoutVersion: get().layoutVersion + 1,
+    });
     get().updateCodeFromAst(nodes, edges);
   },
 
   addNode: (nodeData) => {
-    const existingIds = get().nodes.map(n => n.id);
+    const existingIds = get().nodes.map((n) => n.id);
     let nextNum = 1;
     while (existingIds.includes(`N${nextNum}`)) {
       nextNum++;
     }
     const id = `N${nextNum}`;
-    const newNode = { ...nodeData, id, position: { x: 100, y: 100 } } as DfdNode;
+    const newNode = {
+      ...nodeData,
+      id,
+      position: { x: 100, y: 100 },
+    } as DfdNode;
     const newNodes = [...get().nodes, newNode];
     set({ nodes: newNodes });
     get().updateCodeFromAst(newNodes, get().edges);
@@ -474,5 +643,21 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
     const newEdges = get().edges.filter((e: DfdEdge) => e.id !== id);
     set({ edges: newEdges });
     get().updateCodeFromAst(get().nodes, newEdges);
+  },
+
+  forceLayoutRefresh: () => {
+    const cleanedCode = get()
+      .mermaidCode.split("\n")
+      .filter(
+        (line: string) =>
+          !line.trim().startsWith("%% @nodePosition:") &&
+          !line.trim().startsWith("%% @nodeSize:"),
+      )
+      .join("\n");
+    set({
+      mermaidCode: cleanedCode,
+      layoutVersion: get().layoutVersion + 1,
+    });
+    get().updateAstFromCode(cleanedCode);
   },
 }));
