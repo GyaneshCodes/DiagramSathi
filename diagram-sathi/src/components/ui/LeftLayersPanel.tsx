@@ -11,6 +11,7 @@ import {
   Plus,
 } from "lucide-react";
 import { generateDiagramFromDescription } from "../../utils/gemini";
+import { useEffect } from "react";
 
 /**
  * LeftLayersPanel Component
@@ -61,6 +62,14 @@ export const LeftLayersPanel = () => {
       setIsGenerating(false);
     }
   };
+
+  useEffect(() => {
+    // Triggers automatically on mount if 'isGenerating' flag was set by another component (like Home)
+    if (isGenerating && projectDescription.trim()) {
+      handleSmartSuggest();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const getNodeIcon = (type: string) => {
     switch (type) {
