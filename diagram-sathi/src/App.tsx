@@ -1,16 +1,57 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider } from "./context/AuthContext";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 import { LandingPage } from "./pages/LandingPage";
+import AuthPage from "./components/AuthComponents/AuthPage";
 import Editor from "./pages/Editor";
-import Home from "./pages/Home.tsx";
+import { DashboardLayout } from "./layouts/DashboardLayout";
+
+// Dashboard Pages
+import Home from "./pages/Home";
+import Profile from "./pages/Profile";
+import Drafts from "./pages/Drafts";
+import Projects from "./pages/Projects";
+import Trash from "./pages/Trash";
 
 function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/home" element={<Home />} />
-        <Route path="/editor" element={<Editor />} />
-      </Routes>
+      <AuthProvider>
+        <Routes>
+          {/* Public routes */}
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/signin" element={<AuthPage />} />
+          <Route path="/signup" element={<AuthPage />} />
+
+          {/* Protected Dashboard Routes */}
+          <Route
+            element={
+              <ProtectedRoute>
+                <DashboardLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route path="/home" element={<Home />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/drafts" element={<Drafts />} />
+            <Route path="/projects" element={<Projects />} />
+            <Route path="/trash" element={<Trash />} />
+          </Route>
+
+          {/* Editor Route (Standalone fullscreen, no sidebar) */}
+          <Route
+            path="/editor"
+            element={
+              <ProtectedRoute>
+                <Editor />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Catch-all redirect to home */}
+          <Route path="*" element={<Navigate to="/home" replace />} />
+        </Routes>
+      </AuthProvider>
     </BrowserRouter>
   );
 }

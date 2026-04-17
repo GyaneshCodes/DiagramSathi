@@ -145,7 +145,7 @@ export function LandingPage() {
               Contact
             </a>
             <Link
-              to="/editor"
+              to="/signin"
               className="group flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/10 border border-white/10 text-neutral font-semibold text-sm hover:bg-white/20 hover:border-white/20 transition-all duration-300 ease-out"
             >
               ENTER APP
@@ -210,7 +210,7 @@ export function LandingPage() {
                 control over your architecture.
               </p>
               <Link
-                to="/editor"
+                to="/signin"
                 className="pointer-events-auto inline-flex items-center gap-2.5 mt-7 px-7 py-3.5 rounded-full bg-primary text-neutral font-bold text-sm hover:scale-[1.03] hover:shadow-lg hover:shadow-primary/25 active:scale-[0.98] transition-all duration-300 ease-out"
               >
                 Start Building

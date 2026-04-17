@@ -1,7 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
-
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
+import { supabase } from '../lib/supabase';
 
 export interface AINode {
   id: string;
@@ -23,74 +20,105 @@ export interface AIGeneratedDiagram {
 export const generateDiagramFromDescription = async (
   description: string,
   preferredType: "auto" | "dfd" | "er" | "sequence" = "auto",
+  maxRetries = 3
 ): Promise<AIGeneratedDiagram> => {
-  if (!ai) {
-    throw new Error(
-      "Gemini API key is not configured. Please add VITE_GEMINI_API_KEY to your .env.local file.",
-    );
+  let lastError: any = null;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      console.log(`[Gemini] Attempt ${attempt + 1}/${maxRetries}...`);
+
+      const { data, error } = await Promise.race([
+        supabase.functions.invoke('generate-diagram', {
+          body: { description, preferredType }
+        }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Request timed out. The AI service may be slow — please try again.")), 30000))
+      ]);
+
+      if (error) {
+         console.error("[Gemini] Edge function error (raw):", error);
+         let errorMessage = error.message || "Failed to call diagram generation API";
+         let isRetryable = false;
+
+         // Extract real error from the response body
+         if (error.context && typeof error.context.clone === 'function') {
+           try {
+             const errorBody = await error.context.clone().json();
+             const innerErr = typeof errorBody?.error === 'string' ? errorBody.error : errorBody?.error?.message || errorBody?.error;
+             
+             if (typeof innerErr === 'string' && (innerErr.includes("high demand") || innerErr.includes("UNAVAILABLE") || innerErr.includes("503"))) {
+               isRetryable = true;
+               errorMessage = "The AI service is currently under high demand. Retrying...";
+             } else if (typeof innerErr === 'string') {
+               errorMessage = innerErr;
+             } else if (innerErr?.message) {
+               errorMessage = innerErr.message;
+             }
+           } catch (_) {}
+         }
+         
+         // Also check if the raw message hints at retryable conditions
+         if (errorMessage.includes("non-2xx") || errorMessage.includes("503") || errorMessage.includes("UNAVAILABLE")) {
+           isRetryable = true;
+         }
+
+         const customErr = new Error(errorMessage);
+         (customErr as any).isRetryable = isRetryable;
+         throw customErr;
+      }
+
+      if (!data) throw new Error("No response received from diagram generation API");
+
+      let parsed: AIGeneratedDiagram;
+      if (typeof data === 'string') {
+          try {
+              parsed = JSON.parse(data);
+          } catch (_) {
+              throw new Error("Invalid format received from AI. Please try again.");
+          }
+      } else {
+          parsed = data as AIGeneratedDiagram;
+      }
+
+      // Check for an error field in the parsed data (edge function returned 200 but with error payload)
+      if ((parsed as any).error) {
+        const errMsg = typeof (parsed as any).error === 'string' ? (parsed as any).error : (parsed as any).error.message || "Unknown AI error";
+        const isHighDemand = errMsg.includes("high demand") || errMsg.includes("UNAVAILABLE");
+        const customErr = new Error(errMsg);
+        (customErr as any).isRetryable = isHighDemand;
+        throw customErr;
+      }
+
+      if (!parsed || !Array.isArray(parsed.nodes) || !Array.isArray(parsed.edges)) {
+        throw new Error("AI response missing nodes or edges arrays. Please try a different query.");
+      }
+
+      console.log(`[Gemini] Success! Got ${parsed.nodes.length} nodes and ${parsed.edges.length} edges.`);
+      return parsed;
+    } catch (error: any) {
+      console.warn(`[Gemini] Attempt ${attempt + 1} failed:`, error.message);
+      lastError = error;
+
+      const isRetryable = error.isRetryable || 
+                         error.message.includes("timed out") || 
+                         error.message.includes("high demand") || 
+                         error.message.includes("Failed to fetch") ||
+                         error.message.includes("UNAVAILABLE") ||
+                         error.message.includes("non-2xx");
+      
+      if (isRetryable && attempt < maxRetries - 1) {
+        const delay = (attempt + 1) * 2000;
+        console.log(`[Gemini] Retrying in ${delay}ms...`);
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+
+      if (error instanceof SyntaxError) {
+        throw new Error("AI returned invalid JSON. Please try again.");
+      }
+      throw new Error(`Failed to generate diagram: ${error.message || "Unknown error"}`);
+    }
   }
 
-  const typeInstruction =
-    preferredType === "auto"
-      ? "Choose the most appropriate diagram type based on the description. Use DFD for system flows, ER for database schemas, or Sequence for temporal interactions."
-      : preferredType === "dfd"
-        ? "Generate a Data Flow Diagram (DFD)."
-        : preferredType === "sequence"
-          ? "Generate a Sequence Diagram, focusing on chronological interactions between systems or actors."
-          : "Generate an Entity-Relationship (ER) Diagram.";
-
-  const prompt = `
-You are an expert system architect and diagram generator.
-${typeInstruction}
-
-Based on the following project description, generate a structured diagram as a JSON object.
-
-RULES:
-1. Return ONLY a valid JSON object. No markdown, no explanation, no code fences.
-2. The JSON must have exactly two keys: "nodes" (array) and "edges" (array).
-3. Each node must have: "id" (unique string, no spaces, camelCase), "label" (human-readable name), "type" (one of: "rectangle", "circle", "cylinder", "diamond", "hexagon").
-4. Use "cylinder" type for databases/data stores, "circle" for core processes, "diamond" for decision points, "hexagon" for services/APIs, and "rectangle" for everything else.
-5. Each edge must have: "source" (node id), "target" (node id), "label" (describing what flows or happens, e.g. "sends request", "returns data", "validates token").
-6. Define nodes in logical top-to-bottom or left-to-right order reflecting the actual flow.
-7. Every edge label must be extremely short (maximum 4 words, no full sentences). Never leave it empty.
-8. Do NOT create circular references unless the diagram explicitly requires a feedback loop.
-9. Generate between 4 and 12 nodes for a clear, readable diagram.
-
-EXAMPLE OUTPUT:
-{"nodes":[{"id":"client","label":"Client App","type":"rectangle"},{"id":"api","label":"API Gateway","type":"hexagon"},{"id":"auth","label":"Auth Service","type":"circle"},{"id":"db","label":"User Database","type":"cylinder"}],"edges":[{"source":"client","target":"api","label":"sends request"},{"source":"api","target":"auth","label":"validates credentials"},{"source":"auth","target":"db","label":"queries user data"},{"source":"auth","target":"api","label":"returns token"}]}
-
-Project Description:
-${description}
-`;
-
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-    });
-
-    let text = response.text || "";
-    // Strip any markdown code fences if model wraps them
-    text = text
-      .replace(/^```(?:json)?\s*/gi, "")
-      .replace(/```\s*$/g, "")
-      .trim();
-
-    const parsed: AIGeneratedDiagram = JSON.parse(text);
-
-    // Validate structure
-    if (!Array.isArray(parsed.nodes) || !Array.isArray(parsed.edges)) {
-      throw new Error("AI response missing nodes or edges arrays.");
-    }
-
-    return parsed;
-  } catch (error: unknown) {
-    console.error("Gemini API Error:", error);
-    if (error instanceof SyntaxError) {
-      throw new Error("AI returned invalid JSON. Please try again.");
-    }
-    throw new Error(
-      `Failed to generate diagram: ${error instanceof Error ? error.message : "Unknown error"}`,
-    );
-  }
+  throw lastError;
 };

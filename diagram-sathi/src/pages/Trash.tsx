@@ -1,5 +1,5 @@
 import { ProjectViewLayout } from "../components/dashboard/ProjectViewLayout";
 
-export default function Home() {
-  return <ProjectViewLayout title="Recent" />;
+export default function Trash() {
+  return <ProjectViewLayout title="Trash" />;
 }
