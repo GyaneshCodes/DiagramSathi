@@ -40,6 +40,14 @@ function App() {
 
           {/* Editor Route (Standalone fullscreen, no sidebar) */}
           <Route
+            path="/editor/:id"
+            element={
+              <ProtectedRoute>
+                <Editor />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/editor"
             element={
               <ProtectedRoute>

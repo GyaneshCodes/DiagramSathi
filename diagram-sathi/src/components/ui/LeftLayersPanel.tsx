@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { generateDiagramFromDescription } from "../../utils/gemini";
 import { useEffect } from "react";
+import { useAuth } from "../../context/AuthContext";
 
 /**
  * LeftLayersPanel Component
@@ -43,7 +44,11 @@ export const LeftLayersPanel = () => {
     addEdge,
     removeNode,
     removeEdge,
+    saveProject,
+    setProjectTitle,
   } = useDiagramStore();
+
+  const { session } = useAuth();
 
   const handleSmartSuggest = async () => {
     if (!projectDescription.trim()) return;
@@ -54,6 +59,12 @@ export const LeftLayersPanel = () => {
         preferredDiagramType,
       );
       applyAIGeneratedDiagram(result.nodes, result.edges);
+      
+      // Auto-save the generated diagram immediately
+      setProjectTitle(projectDescription.slice(0, 30) + (projectDescription.length > 30 ? "..." : ""));
+      if (session?.user?.id) {
+        await saveProject(session.user.id);
+      }
     } catch (error: unknown) {
       alert(
         error instanceof Error ? error.message : "Failed to generate diagram.",

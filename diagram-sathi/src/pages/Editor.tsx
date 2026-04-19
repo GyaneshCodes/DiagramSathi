@@ -1,5 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { Navbar } from "../components/Navbar";
+import { useAuth } from "../context/AuthContext";
 import { LeftLayersPanel } from "../components/ui/LeftLayersPanel";
 import { RightPropertiesPanel } from "../components/ui/RightPropertiesPanel";
 import { PaneCenterCanvas } from "../components/PanelCenterCanvas";
@@ -7,6 +9,11 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useDiagramStore } from "../store/useDiagramStore";
 
 export function Editor() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { session } = useAuth();
+  const userId = session?.user?.id;
+
   const {
     leftPanelCollapsed,
     setLeftPanelCollapsed,
@@ -14,7 +21,54 @@ export function Editor() {
     setRightPanelCollapsed,
     setActiveTool,
     activeTool,
+    loadProject,
+    saveProject,
+    nodes,
+    edges,
+    projectTitle,
+    setCurrentProjectId,
   } = useDiagramStore();
+
+  const isInitialMount = useRef(true);
+
+  // Hydrate Project from URL ID
+  useEffect(() => {
+    if (id) {
+      loadProject(id).catch(err => {
+        console.error("Failed to load project from URL ID", err);
+      });
+    } else {
+      setCurrentProjectId(null);
+    }
+  }, [id, loadProject, setCurrentProjectId]);
+
+  const currentProjectId = useDiagramStore(state => state.currentProjectId);
+  
+  // Sync URL when a new project is created (e.g. from Auto-Save or AI Generation)
+  useEffect(() => {
+     if (currentProjectId && !id) {
+        navigate(`/editor/${currentProjectId}`, { replace: true });
+     }
+  }, [currentProjectId, id, navigate]);
+
+  // Auto-Save Effect (Debounced)
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
+    if (!userId) return;
+
+    const timer = setTimeout(() => {
+      // Auto-save logic
+      saveProject(userId).then(() => {
+         console.log("Auto-saved successfully");
+      }).catch(err => console.error("Auto-save failed", err));
+    }, 2000); // 2 second debounce
+
+    return () => clearTimeout(timer);
+  }, [nodes, edges, projectTitle, saveProject, userId]);
 
   // Keyboard Shortcuts
   useEffect(() => {

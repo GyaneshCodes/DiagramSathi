@@ -1,10 +1,21 @@
 import { useState } from "react";
-import { Settings, UserCircle, Share2, Download, X } from "lucide-react";
+import { Settings, UserCircle, Share2, Download, X, ArrowLeft, Save } from "lucide-react";
 import { toPng } from "html-to-image";
+import { useNavigate } from "react-router-dom";
+import { useDiagramStore } from "../store/useDiagramStore";
+import { useAuth } from "../context/AuthContext";
 
 export const Navbar = () => {
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isTransparent, setIsTransparent] = useState(true);
+  const navigate = useNavigate();
+  const { session } = useAuth();
+  const { saveProject, projectTitle, projectStatus, currentProjectId } = useDiagramStore();
+
+  const handleSaveAsDraft = async () => {
+    if (!session?.user?.id) return;
+    await saveProject(session.user.id, true);
+  };
 
   const handleExport = () => {
     const flowEl = document.querySelector(".react-flow") as HTMLElement;
@@ -43,8 +54,20 @@ export const Navbar = () => {
   return (
     <>
       <div className="h-14 bg-[#0f111a]/80 backdrop-blur-md border-b border-slate-800/50 flex items-center justify-between px-6 shrink-0 z-20">
-        <div className="text-lg font-bold tracking-[0.15em] text-[#a5b4fc]">
-          DIAGRAMSATHI
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => navigate("/home")}
+            className="text-slate-400 hover:text-slate-200 transition-colors p-1.5 rounded-md hover:bg-slate-800/50 flex items-center justify-center cursor-pointer"
+            title="Go to Dashboard"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div className="flex flex-col">
+            <span className="text-sm font-semibold text-slate-200 truncate max-w-[200px]">{projectTitle}</span>
+            <span className={`text-[10px] uppercase tracking-wider font-medium ${projectStatus === 'draft' ? 'text-amber-500' : 'text-emerald-500'}`}>
+               {currentProjectId ? (projectStatus === 'draft' ? 'Draft - Auto Saved' : 'Saved') : 'Unsaved'}
+            </span>
+          </div>
         </div>
         
         <div className="flex items-center gap-5">
@@ -59,6 +82,18 @@ export const Navbar = () => {
           
           <button className="text-slate-300 hover:text-white flex items-center gap-2 text-sm font-medium transition-colors">
             <Share2 size={16} /> SHARE
+          </button>
+
+          <button
+            onClick={handleSaveAsDraft}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-colors ml-2 cursor-pointer ${
+              projectStatus === "draft" 
+                ? "bg-amber-500/20 text-amber-500 border border-amber-500/30"
+                : "bg-slate-800/80 text-slate-300 border border-slate-700 hover:bg-slate-700"
+            }`}
+            title="Mark as Draft"
+          >
+            <Save size={16} /> Mark as Draft
           </button>
           
           <button

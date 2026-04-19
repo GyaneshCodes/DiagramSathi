@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import dagre from "dagre";
+import { getProject, createProject, updateProject } from "../lib/projects";
 
 // Basic structure for our Abstract Syntax Tree (AST) representing a DFD Level 0 diagram.
 export interface DfdNode {
@@ -45,6 +46,11 @@ interface DiagramState {
   isGenerating: boolean;
   preferredDiagramType: "auto" | "dfd" | "er" | "sequence";
 
+  // Persistence State
+  currentProjectId: string | null;
+  projectTitle: string;
+  projectStatus: "draft" | "active" | "trashed";
+
   // UI State (Phase 1)
   selectedNodeId: string | null;
   selectedEdgeId: string | null;
@@ -70,6 +76,13 @@ interface DiagramState {
   setLeftPanelCollapsed: (collapsed: boolean) => void;
   setRightPanelCollapsed: (collapsed: boolean) => void;
   setShowCodeInRightPanel: (show: boolean) => void;
+
+  // Persistence Actions
+  setCurrentProjectId: (id: string | null) => void;
+  setProjectTitle: (title: string) => void;
+  loadProject: (id: string) => Promise<void>;
+  saveProject: (userId: string, isDraft?: boolean) => Promise<void>;
+  resetToBlank: () => void;
 
   // AI Generation
   applyAIGeneratedDiagram: (
@@ -473,6 +486,11 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   projectDescription: "",
   isGenerating: false,
   preferredDiagramType: "auto",
+  
+  currentProjectId: null,
+  projectTitle: "Untitled Diagram",
+  projectStatus: "draft",
+  
   selectedNodeId: null,
   selectedEdgeId: null,
   activeTool: "cursor",
@@ -526,6 +544,82 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   setRightPanelCollapsed: (collapsed) =>
     set({ rightPanelCollapsed: collapsed }),
   setShowCodeInRightPanel: (show) => set({ showCodeInRightPanel: show }),
+
+  setCurrentProjectId: (id) => set({ currentProjectId: id }),
+  setProjectTitle: (title) => set({ projectTitle: title }),
+
+  resetToBlank: () => {
+    set({
+      currentProjectId: null,
+      projectTitle: "Untitled Diagram",
+      projectStatus: "active",
+      projectDescription: "",
+      isGenerating: false,
+      mermaidCode: `graph TD\n  %% DiagramSathi - Blank Canvas\n`,
+      diagramType: "dfd",
+      nodes: [],
+      edges: [],
+      selectedNodeId: null,
+      selectedEdgeId: null,
+      layoutVersion: get().layoutVersion + 1,
+    });
+  },
+  
+  loadProject: async (id: string) => {
+    try {
+      const dbProject = await getProject(id);
+      set({
+        currentProjectId: dbProject.id,
+        projectTitle: dbProject.title,
+        projectStatus: dbProject.status,
+        mermaidCode: dbProject.mermaid_code || DEFAULT_CODE,
+        diagramType: dbProject.diagram_type,
+        layoutVersion: get().layoutVersion + 1,
+      });
+      // Optionally hydrate nodes/edges from ast_data if present
+      if (dbProject.ast_data && Array.isArray((dbProject.ast_data as any).nodes)) {
+        set({
+           nodes: (dbProject.ast_data as any).nodes,
+           edges: (dbProject.ast_data as any).edges || []
+        });
+      } else if (dbProject.mermaid_code) {
+        get().updateAstFromCode(dbProject.mermaid_code);
+      }
+    } catch (err) {
+      console.error("Failed to load project", err);
+    }
+  },
+
+  saveProject: async (userId: string, forceDraft?: boolean) => {
+    const state = get();
+    // If forceDraft is undefined, retain current projectStatus
+    const finalStatus = forceDraft === true ? "draft" 
+                      : (forceDraft === false ? "active" 
+                      : (state.projectStatus || "active"));
+                      
+    const data = {
+      title: state.projectTitle || "Untitled Diagram",
+      mermaid_code: state.mermaidCode,
+      diagram_type: state.diagramType,
+      status: finalStatus,
+      ast_data: { nodes: state.nodes, edges: state.edges },
+    } as any;
+
+    try {
+      if (state.currentProjectId) {
+        await updateProject(state.currentProjectId, data);
+        set({ projectStatus: finalStatus });
+      } else {
+        const newProj = await createProject(userId, data);
+        set({ 
+          currentProjectId: newProj.id, 
+          projectStatus: newProj.status 
+        });
+      }
+    } catch (err) {
+      console.error("Failed to save project", err);
+    }
+  },
 
   updateAstFromCode: (code) => {
     const {

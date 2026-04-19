@@ -54,9 +54,15 @@ export async function createProject(
   userId: string,
   data: Partial<Pick<Project, "title" | "description" | "diagram_type" | "mermaid_code" | "ast_data" | "status">>,
 ) {
+  const now = new Date().toISOString();
   const { data: newProject, error } = await supabase
     .from("projects")
-    .insert({ user_id: userId, ...data })
+    .insert({ 
+      user_id: userId, 
+      created_at: now,
+      updated_at: now,
+      ...data 
+    })
     .select()
     .single();
 
@@ -71,7 +77,7 @@ export async function updateProject(
 ) {
   const { data, error } = await supabase
     .from("projects")
-    .update(fields)
+    .update({ ...fields, updated_at: new Date().toISOString() })
     .eq("id", projectId)
     .select()
     .single();

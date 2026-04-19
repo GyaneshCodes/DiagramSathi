@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, LayoutGrid, List, Bot, ArrowRight, MoreVertical, FolderOpen, Loader2 } from "lucide-react";
+import { Search, LayoutGrid, List, Bot, ArrowRight, MoreVertical, FolderOpen, Loader2, Plus } from "lucide-react";
 import { useDiagramStore } from "../../store/useDiagramStore";
 import { motion, AnimatePresence } from "framer-motion";
 import { getUserProjects, type Project } from "../../lib/projects";
@@ -33,6 +33,7 @@ export const ProjectViewLayout = ({
 
   const [projectsData, setProjectsData] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const setProjectDescription = useDiagramStore((state) => state.setProjectDescription);
   const setIsGenerating = useDiagramStore((state) => state.setIsGenerating);
@@ -40,41 +41,62 @@ export const ProjectViewLayout = ({
   // If we are not on the generic pages that have data, don't show diagrams
   const hasData = ["Home", "Recent", "Drafts", "All Diagrams", "All Projects", "Projects", "Trash"].includes(title);
   
+  const fetchProjects = () => {
+    setLoading(true);
+    setFetchError(null);
+
+    let statusFilter: "draft" | "active" | "trashed" | undefined = undefined;
+    if (title === "Drafts") statusFilter = "draft";
+    if (title === "Trash") statusFilter = "trashed";
+
+    // Safety timeout: if Supabase doesn't respond within 10s, stop the spinner
+    const timeoutId = setTimeout(() => {
+      setLoading(false);
+      setFetchError("Connection timed out. Please check your network and try again.");
+    }, 10000);
+
+    getUserProjects(statusFilter)
+      .then((data) => {
+        clearTimeout(timeoutId);
+        let displayedData = data;
+        if (title === "Recent" || title === "Home") {
+          const twoDaysAgo = Date.now() - 2 * 24 * 60 * 60 * 1000;
+          displayedData = data.filter((d) => {
+            const dateStr = d.updated_at || d.created_at;
+            if (!dateStr) return false;
+            return new Date(dateStr).getTime() > twoDaysAgo;
+          });
+        }
+        setProjectsData(displayedData);
+        setLoading(false);
+        setFetchError(null);
+      })
+      .catch((err) => {
+        clearTimeout(timeoutId);
+        console.error("Failed to fetch projects:", err);
+        setLoading(false);
+        setFetchError("Failed to load diagrams. Please try again.");
+      });
+  };
+
   useEffect(() => {
     if (!hasData) {
       setLoading(false);
       return;
     }
-    
-    let statusFilter: "draft" | "active" | "trashed" | undefined = undefined;
-    if (title === "Drafts") statusFilter = "draft";
-    if (title === "Trash") statusFilter = "trashed";
-
-    getUserProjects(statusFilter)
-      .then((data) => {
-        let displayedData = data;
-        if (title === "Recent" || title === "Home") {
-          const twoDaysAgo = Date.now() - 2 * 24 * 60 * 60 * 1000;
-          displayedData = data.filter(
-            (d) => new Date(d.updated_at).getTime() > twoDaysAgo
-          );
-        }
-        setProjectsData(displayedData);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Failed to fetch projects:", err);
-        setLoading(false);
-      });
+    fetchProjects();
   }, [title, hasData]);
 
-  const rawDiagrams = projectsData.map(p => ({
-    id: p.id,
-    title: p.title,
-    date: formatTimeAgo(p.updated_at),
-    timestamp: new Date(p.updated_at).getTime(),
-    type: p.diagram_type
-  }));
+  const rawDiagrams = projectsData.map(p => {
+    const validDate = p.updated_at || p.created_at || new Date().toISOString();
+    return {
+      id: p.id,
+      title: p.title || "Untitled Diagram",
+      date: formatTimeAgo(validDate),
+      timestamp: new Date(validDate).getTime(),
+      type: p.diagram_type
+    };
+  });
 
   const filteredDiagrams = hasData 
     ? rawDiagrams.filter((d) => d.title.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -89,7 +111,11 @@ export const ProjectViewLayout = ({
     if (!prompt.trim()) return;
     setProjectDescription(prompt);
     setIsGenerating(true);
-    // In a real flow, the /editor will pick up isGenerating and make the API call
+    navigate("/editor");
+  };
+
+  const handleNewBlank = () => {
+    useDiagramStore.getState().resetToBlank();
     navigate("/editor");
   };
 
@@ -137,14 +163,23 @@ export const ProjectViewLayout = ({
               </span>
             </div>
 
-            <button
-              onClick={handleGenerate}
-              disabled={!prompt.trim()}
-              className="flex items-center gap-2 px-6 py-2 rounded-full bg-primary text-neutral font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary/90 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 shadow-lg shadow-primary/20"
-            >
-              <Bot className="w-4 h-4" />
-              Generate Diagram
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleNewBlank}
+                className="flex items-center gap-2 px-5 py-2 rounded-full bg-white/5 border border-white/10 text-neutral/80 font-medium text-sm hover:bg-white/10 hover:text-neutral hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                Blank Diagram
+              </button>
+              <button
+                onClick={handleGenerate}
+                disabled={!prompt.trim()}
+                className="flex items-center gap-2 px-6 py-2 rounded-full bg-primary text-neutral font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary/90 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 shadow-lg shadow-primary/20 cursor-pointer"
+              >
+                <Bot className="w-4 h-4" />
+                Generate Diagram
+              </button>
+            </div>
           </div>
         </motion.div>
       </div>
@@ -228,6 +263,16 @@ export const ProjectViewLayout = ({
               <Loader2 className="w-8 h-8 text-primary animate-spin mb-4" />
               <p className="text-sm text-neutral/60">Loading diagrams...</p>
             </div>
+          ) : fetchError ? (
+            <div className="h-64 border-2 border-dashed border-red-500/20 rounded-2xl flex flex-col items-center justify-center text-center gap-4">
+              <p className="text-sm text-red-400">{fetchError}</p>
+              <button
+                onClick={fetchProjects}
+                className="px-5 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-neutral/80 hover:bg-white/10 hover:text-neutral transition-all duration-200 cursor-pointer"
+              >
+                Retry
+              </button>
+            </div>
           ) : hasData && filteredDiagrams.length > 0 ? (
             viewMode === "grid" ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
@@ -238,7 +283,7 @@ export const ProjectViewLayout = ({
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: i * 0.05 }}
                     className="group relative cursor-pointer"
-                    onClick={() => navigate("/editor")}
+                    onClick={() => navigate(`/editor/${item.id}`)}
                   >
                     <div className="glass-card aspect-video mb-3 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center overflow-hidden group-hover:border-primary/30 transition-colors duration-300">
                       {/* Placeholder abstract representation of a diagram */}
@@ -286,7 +331,7 @@ export const ProjectViewLayout = ({
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.05 }}
                     className="group flex items-center justify-between p-4 glass-card rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer"
-                    onClick={() => navigate("/editor")}
+                    onClick={() => navigate(`/editor/${item.id}`)}
                   >
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 rounded-lg bg-[#12101a] border border-white/10 flex items-center justify-center shrink-0">
