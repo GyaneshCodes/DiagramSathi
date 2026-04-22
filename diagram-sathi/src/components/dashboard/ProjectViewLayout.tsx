@@ -1,9 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, LayoutGrid, List, Bot, ArrowRight, MoreVertical, FolderOpen, Loader2, Plus } from "lucide-react";
-import { useDiagramStore } from "../../store/useDiagramStore";
+import { Search, LayoutGrid, List, ArrowRight, FolderOpen, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { getUserProjects, type Project } from "../../lib/projects";
+import toast from "react-hot-toast";
+import { getUserProjects, renameProject, moveToTrash, restoreFromTrash, permanentlyDelete, updateProject, type Project } from "../../lib/projects";
+import { DiagramCardMenu, type MenuLocation } from "../ui/DiagramCardMenu";
+import { ConfirmModal } from "../ui/ConfirmModal";
 
 function formatTimeAgo(dateString: string) {
   const diff = Date.now() - new Date(dateString).getTime();
@@ -12,6 +14,12 @@ function formatTimeAgo(dateString: string) {
   if (diff < 86400000) return `${Math.floor(diff / 3600000)} hours ago`;
   if (diff < 172800000) return "Yesterday";
   return `${Math.floor(diff / 86400000)} days ago`;
+}
+
+function getMenuLocation(title: string): MenuLocation {
+  if (title === "Drafts") return "drafts";
+  if (title === "Trash") return "trash";
+  return "all";
 }
 
 interface ProjectViewLayoutProps {
@@ -27,7 +35,6 @@ export const ProjectViewLayout = ({
 }: ProjectViewLayoutProps) => {
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [prompt, setPrompt] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortOption, setSortOption] = useState("date_desc");
 
@@ -35,12 +42,17 @@ export const ProjectViewLayout = ({
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
-  const setProjectDescription = useDiagramStore((state) => state.setProjectDescription);
-  const setIsGenerating = useDiagramStore((state) => state.setIsGenerating);
+  // Inline rename state
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const renameInputRef = useRef<HTMLInputElement>(null);
 
-  // If we are not on the generic pages that have data, don't show diagrams
-  const hasData = ["Home", "Recent", "Drafts", "All Diagrams", "All Projects", "Projects", "Trash"].includes(title);
-  
+  // Confirm delete modal
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
+
+  const menuLocation = getMenuLocation(title);
+  const hasData = ["Drafts", "All Diagrams", "All Projects", "Projects", "Trash"].includes(title);
+
   const fetchProjects = () => {
     setLoading(true);
     setFetchError(null);
@@ -49,7 +61,6 @@ export const ProjectViewLayout = ({
     if (title === "Drafts") statusFilter = "draft";
     if (title === "Trash") statusFilter = "trashed";
 
-    // Safety timeout: if Supabase doesn't respond within 10s, stop the spinner
     const timeoutId = setTimeout(() => {
       setLoading(false);
       setFetchError("Connection timed out. Please check your network and try again.");
@@ -58,16 +69,7 @@ export const ProjectViewLayout = ({
     getUserProjects(statusFilter)
       .then((data) => {
         clearTimeout(timeoutId);
-        let displayedData = data;
-        if (title === "Recent" || title === "Home") {
-          const twoDaysAgo = Date.now() - 2 * 24 * 60 * 60 * 1000;
-          displayedData = data.filter((d) => {
-            const dateStr = d.updated_at || d.created_at;
-            if (!dateStr) return false;
-            return new Date(dateStr).getTime() > twoDaysAgo;
-          });
-        }
-        setProjectsData(displayedData);
+        setProjectsData(data);
         setLoading(false);
         setFetchError(null);
       })
@@ -87,19 +89,109 @@ export const ProjectViewLayout = ({
     fetchProjects();
   }, [title, hasData]);
 
-  const rawDiagrams = projectsData.map(p => {
+  // Focus rename input when it opens
+  useEffect(() => {
+    if (renamingId) {
+      setTimeout(() => renameInputRef.current?.focus(), 50);
+    }
+  }, [renamingId]);
+
+  // --- Optimistic removal helper ---
+  const removeCard = (id: string) => {
+    setProjectsData((prev) => prev.filter((p) => p.id !== id));
+  };
+
+  // --- Action Handlers ---
+  const handleStartRename = (id: string, currentTitle: string) => {
+    setRenamingId(id);
+    setRenameValue(currentTitle);
+  };
+
+  const handleCommitRename = async (id: string) => {
+    const trimmed = renameValue.trim();
+    if (!trimmed) {
+      setRenamingId(null);
+      return;
+    }
+    try {
+      await renameProject(id, trimmed);
+      setProjectsData((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, title: trimmed } : p)),
+      );
+      toast.success("Renamed successfully");
+    } catch {
+      toast.error("Failed to rename");
+    }
+    setRenamingId(null);
+  };
+
+  const handleMarkAsDraft = async (id: string) => {
+    try {
+      await updateProject(id, { status: "draft" });
+      removeCard(id);
+      toast.success("Marked as Draft");
+    } catch {
+      toast.error("Failed to mark as draft");
+    }
+  };
+
+  const handleRemoveFromDraft = async (id: string) => {
+    try {
+      await updateProject(id, { status: "active" });
+      removeCard(id);
+      toast.success("Removed from Drafts");
+    } catch {
+      toast.error("Failed to remove from drafts");
+    }
+  };
+
+  const handleMoveToTrash = async (id: string) => {
+    try {
+      await moveToTrash(id);
+      removeCard(id);
+      toast.success("Moved to Trash");
+    } catch {
+      toast.error("Failed to move to trash");
+    }
+  };
+
+  const handleRestore = async (id: string) => {
+    try {
+      await restoreFromTrash(id);
+      removeCard(id);
+      toast.success("Restored successfully");
+    } catch {
+      toast.error("Failed to restore");
+    }
+  };
+
+  const handleDeletePermanently = async () => {
+    if (!deleteTarget) return;
+    try {
+      await permanentlyDelete(deleteTarget.id);
+      removeCard(deleteTarget.id);
+      toast.success("Deleted permanently");
+    } catch {
+      toast.error("Failed to delete");
+    }
+    setDeleteTarget(null);
+  };
+
+  // --- Data transforms ---
+  const rawDiagrams = projectsData.map((p) => {
     const validDate = p.updated_at || p.created_at || new Date().toISOString();
     return {
       id: p.id,
       title: p.title || "Untitled Diagram",
       date: formatTimeAgo(validDate),
       timestamp: new Date(validDate).getTime(),
-      type: p.diagram_type
+      type: p.diagram_type,
     };
   });
 
-  const filteredDiagrams = hasData 
-    ? rawDiagrams.filter((d) => d.title.toLowerCase().includes(searchQuery.toLowerCase()))
+  const filteredDiagrams = hasData
+    ? rawDiagrams
+        .filter((d) => d.title.toLowerCase().includes(searchQuery.toLowerCase()))
         .sort((a, b) => {
           if (sortOption === "name_asc") return a.title.localeCompare(b.title);
           if (sortOption === "date_asc") return a.timestamp - b.timestamp;
@@ -107,82 +199,63 @@ export const ProjectViewLayout = ({
         })
     : [];
 
-  const handleGenerate = () => {
-    if (!prompt.trim()) return;
-    setProjectDescription(prompt);
-    setIsGenerating(true);
-    navigate("/editor");
+  // --- Render helpers ---
+  const renderTitle = (item: { id: string; title: string }) => {
+    if (renamingId === item.id) {
+      return (
+        <input
+          ref={renameInputRef}
+          value={renameValue}
+          onChange={(e) => setRenameValue(e.target.value)}
+          onBlur={() => handleCommitRename(item.id)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleCommitRename(item.id);
+            if (e.key === "Escape") setRenamingId(null);
+          }}
+          onClick={(e) => e.stopPropagation()}
+          className="text-sm font-semibold text-neutral bg-white/10 border border-primary/50 rounded px-1.5 py-0.5 outline-none w-full max-w-[180px]"
+        />
+      );
+    }
+    return (
+      <h3 className="text-sm font-semibold text-neutral/90 truncate max-w-[180px] group-hover:text-primary transition-colors">
+        {item.title}
+      </h3>
+    );
   };
 
-  const handleNewBlank = () => {
-    useDiagramStore.getState().resetToBlank();
-    navigate("/editor");
-  };
+  const renderMenu = (item: { id: string; title: string }) => (
+    <DiagramCardMenu
+      location={menuLocation}
+      onRename={() => handleStartRename(item.id, item.title)}
+      onMarkAsDraft={menuLocation === "all" || menuLocation === "home" ? () => handleMarkAsDraft(item.id) : undefined}
+      onRemoveFromDraft={menuLocation === "drafts" ? () => handleRemoveFromDraft(item.id) : undefined}
+      onMoveToTrash={menuLocation !== "trash" ? () => handleMoveToTrash(item.id) : undefined}
+      onRestore={menuLocation === "trash" ? () => handleRestore(item.id) : undefined}
+      onDeletePermanently={menuLocation === "trash" ? () => setDeleteTarget({ id: item.id, title: item.title }) : undefined}
+    />
+  );
 
   return (
-    <div className="flex flex-col gap-14 w-full">
-      {/* AI GENERATION HEADER */}
-      <div className="space-y-6">
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: "easeOut" }}
-        >
-          <h1 className="text-3xl font-black tracking-tight mb-2 uppercase">
-            <span className="text-transparent [-webkit-text-stroke:1px_var(--color-neutral)] opacity-60 mr-3">
-              Hello,
-            </span>
-            Architect
-          </h1>
-          <p className="text-sm text-neutral/50 font-light">
-            Describe the logic of your system to generate a highly structured diagram.
-          </p>
-        </motion.div>
+    <div className="flex flex-col gap-8 w-full">
+      {/* Confirm delete modal */}
+      <ConfirmModal
+        open={!!deleteTarget}
+        title="Delete Permanently?"
+        description={`"${deleteTarget?.title ?? ""}" will be gone forever. This cannot be undone.`}
+        confirmLabel="Delete Forever"
+        onConfirm={handleDeletePermanently}
+        onCancel={() => setDeleteTarget(null)}
+      />
 
-        <motion.div
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
-          className="relative rounded-2xl glass-card overflow-hidden bg-white/[0.03] border border-white/10 group focus-within:border-primary/40 focus-within:shadow-[0_0_40px_-10px_rgba(var(--color-primary-rgb),0.15)] transition-all duration-500"
-        >
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary/0 via-primary/50 to-primary/0 opacity-0 group-focus-within:opacity-100 transition-opacity duration-500" />
-
-          <textarea
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            placeholder="E.g., A library system where the user registers, checks out a book, and the database updates..."
-            rows={3}
-            className="w-full bg-transparent resize-none p-5 text-sm md:text-base outline-none text-neutral placeholder:text-neutral/25 selection:bg-primary/20"
-            style={{ scrollbarWidth: "none" }}
-          />
-
-          <div className="flex items-center justify-between px-5 py-3 border-t border-white/5 bg-white/[0.01]">
-            <div className="flex items-center gap-3">
-              <span className="text-[10px] font-mono text-neutral/40 uppercase tracking-widest bg-white/5 px-2 py-1 rounded">
-                DFD / ER Supported
-              </span>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handleNewBlank}
-                className="flex items-center gap-2 px-5 py-2 rounded-full bg-white/5 border border-white/10 text-neutral/80 font-medium text-sm hover:bg-white/10 hover:text-neutral hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                Blank Diagram
-              </button>
-              <button
-                onClick={handleGenerate}
-                disabled={!prompt.trim()}
-                className="flex items-center gap-2 px-6 py-2 rounded-full bg-primary text-neutral font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary/90 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 shadow-lg shadow-primary/20 cursor-pointer"
-              >
-                <Bot className="w-4 h-4" />
-                Generate Diagram
-              </button>
-            </div>
-          </div>
-        </motion.div>
-      </div>
+      {/* PAGE HEADER */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: "easeOut" }}
+      >
+        <h1 className="text-2xl font-bold tracking-tight text-neutral/90">{title}</h1>
+      </motion.div>
 
       {/* ACTIVE VIEW CONTENT */}
       <AnimatePresence mode="wait">
@@ -194,11 +267,7 @@ export const ProjectViewLayout = ({
           transition={{ duration: 0.3 }}
           className="flex-1"
         >
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-xl font-bold tracking-tight text-neutral/90">
-              {title}
-            </h2>
-
+          <div className="flex items-center justify-end mb-6">
             {/* View Controls */}
             {showControls && (
               <div className="flex items-center gap-4">
@@ -286,7 +355,6 @@ export const ProjectViewLayout = ({
                     onClick={() => navigate(`/editor/${item.id}`)}
                   >
                     <div className="glass-card aspect-video mb-3 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center overflow-hidden group-hover:border-primary/30 transition-colors duration-300">
-                      {/* Placeholder abstract representation of a diagram */}
                       <div className="w-full h-full opacity-20 group-hover:opacity-40 transition-opacity duration-300 flex items-center justify-center">
                         {item.type === "dfd" ? (
                           <div className="flex gap-4 items-center">
@@ -309,15 +377,11 @@ export const ProjectViewLayout = ({
                       </div>
                     </div>
                     <div className="flex justify-between items-start px-1">
-                      <div>
-                        <h3 className="text-sm font-semibold text-neutral/90 truncate max-w-[180px] group-hover:text-primary transition-colors">
-                          {item.title}
-                        </h3>
+                      <div className="flex-1 min-w-0 mr-2">
+                        {renderTitle(item)}
                         <p className="text-[11px] text-neutral/40 mt-0.5">{item.date}</p>
                       </div>
-                      <button className="text-neutral/30 hover:text-neutral/80 p-1 cursor-pointer">
-                        <MoreVertical className="w-4 h-4" />
-                      </button>
+                      {renderMenu(item)}
                     </div>
                   </motion.div>
                 ))}
@@ -333,7 +397,7 @@ export const ProjectViewLayout = ({
                     className="group flex items-center justify-between p-4 glass-card rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer"
                     onClick={() => navigate(`/editor/${item.id}`)}
                   >
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-4 flex-1 min-w-0">
                       <div className="w-10 h-10 rounded-lg bg-[#12101a] border border-white/10 flex items-center justify-center shrink-0">
                         {item.type === "dfd" ? (
                           <ArrowRight className="w-4 h-4 text-primary" />
@@ -341,10 +405,8 @@ export const ProjectViewLayout = ({
                           <LayoutGrid className="w-4 h-4 text-blue-400" />
                         )}
                       </div>
-                      <div>
-                        <h3 className="text-sm font-semibold text-neutral/90 group-hover:text-primary transition-colors">
-                          {item.title}
-                        </h3>
+                      <div className="min-w-0">
+                        {renderTitle(item)}
                         <p className="text-[11px] text-neutral/40 mt-0.5 capitalize">
                           {item.type} Diagram
                         </p>
@@ -352,9 +414,7 @@ export const ProjectViewLayout = ({
                     </div>
                     <div className="flex items-center gap-6">
                       <span className="text-xs text-neutral/40">{item.date}</span>
-                      <button className="text-neutral/30 hover:text-neutral/80 p-1 cursor-pointer">
-                        <MoreVertical className="w-4 h-4" />
-                      </button>
+                      {renderMenu(item)}
                     </div>
                   </motion.div>
                 ))}

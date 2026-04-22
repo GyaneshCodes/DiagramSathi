@@ -64,60 +64,70 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    // Get initial session
-    const initSession = async () => {
+    let mounted = true;
+
+    // Safety net only for extreme cases (30 seconds)
+    const emergencyTimeout = setTimeout(() => {
+      if (mounted) {
+        console.warn(
+          "[Auth] Session check taking extremely long. Removing loading blocker.",
+        );
+        setIsLoading(false);
+      }
+    }, 30000);
+
+    const initAuth = async () => {
       try {
         const {
           data: { session: currentSession },
         } = await supabase.auth.getSession();
 
-        setSession(currentSession);
-        setUser(currentSession?.user ?? null);
+        if (mounted) {
+          setSession(currentSession);
+          setUser(currentSession?.user ?? null);
 
-        if (currentSession?.user) {
-          const profileData = await fetchProfile(currentSession.user.id);
-          setProfile(profileData);
+          if (currentSession?.user) {
+            const profileData = await fetchProfile(currentSession.user.id);
+            if (mounted) setProfile(profileData);
+          }
         }
       } catch (error) {
         console.error("[Auth] Failed to initialize auth session:", error);
       } finally {
-        setIsLoading(false);
+        if (mounted) {
+          setIsLoading(false);
+          clearTimeout(emergencyTimeout);
+        }
       }
     };
 
-    // Safety net: if session check takes too long, stop loading anyway
-    const timeout = setTimeout(() => {
-      setIsLoading((prev) => {
-        if (prev)
-          console.warn(
-            "Auth session check timed out — proceeding as unauthenticated.",
-          );
-        return false;
-      });
-    }, 5000);
-
-    // Ensure timeout is cleared if initSession finishes quickly
-    initSession().then(() => clearTimeout(timeout));
+    initAuth();
 
     // Listen for auth changes (login, logout, token refresh)
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+      if (!mounted) return;
+
       setSession(newSession);
       setUser(newSession?.user ?? null);
 
       if (newSession?.user) {
-        const profileData = await fetchProfile(newSession.user.id);
-        setProfile(profileData);
+        // Fetch profile asynchronously so we don't block auth state update
+        fetchProfile(newSession.user.id).then((profileData) => {
+          if (mounted) setProfile(profileData);
+        });
       } else {
         setProfile(null);
       }
 
       setIsLoading(false);
+      clearTimeout(emergencyTimeout);
     });
 
     return () => {
-      clearTimeout(timeout);
+      mounted = false;
+      clearTimeout(emergencyTimeout);
       subscription.unsubscribe();
     };
   }, []);

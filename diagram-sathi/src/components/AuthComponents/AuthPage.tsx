@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Bot } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import SignInForm from "../../pages/SignIn";
 import SignUpForm from "../../pages/SignUp";
@@ -106,9 +105,11 @@ const AuthPage = () => {
               className={`absolute top-0 flex flex-col items-center justify-center w-1/2 h-full px-10 text-center transition-transform duration-700 ease-in-out
                 ${isActive ? "translate-x-0" : "-translate-x-[20%]"}`}
             >
-              <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center mb-6 backdrop-blur-sm">
-                <Bot className="w-5 h-5 text-white" />
-              </div>
+              <img
+                src="/logo.png"
+                alt="DiagramSathi"
+                className="h-20 w-auto object-contain mb-6 drop-shadow-[0_0_15px_rgba(128,59,255,0.5)]"
+              />
               <h1 className="text-3xl font-black tracking-tight mb-3">
                 Welcome Back!
               </h1>
@@ -129,9 +130,11 @@ const AuthPage = () => {
               className={`absolute top-0 right-0 flex flex-col items-center justify-center w-1/2 h-full px-10 text-center transition-transform duration-700 ease-in-out
                 ${isActive ? "translate-x-[20%]" : "translate-x-0"}`}
             >
-              <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center mb-6 backdrop-blur-sm">
-                <Bot className="w-5 h-5 text-white" />
-              </div>
+              <img
+                src="/logo.png"
+                alt="DiagramSathi"
+                className="h-20 w-auto object-contain mb-6 drop-shadow-[0_0_15px_rgba(128,59,255,0.5)]"
+              />
               <h1 className="text-3xl font-black tracking-tight mb-3">
                 Hello, Architect!
               </h1>

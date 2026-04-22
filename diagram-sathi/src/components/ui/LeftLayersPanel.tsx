@@ -13,6 +13,7 @@ import {
 import { generateDiagramFromDescription } from "../../utils/gemini";
 import { useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
+import { logAiGeneration } from "../../lib/projects";
 
 /**
  * LeftLayersPanel Component
@@ -46,6 +47,7 @@ export const LeftLayersPanel = () => {
     removeEdge,
     saveProject,
     setProjectTitle,
+    currentProjectId,
   } = useDiagramStore();
 
   const { session } = useAuth();
@@ -60,6 +62,16 @@ export const LeftLayersPanel = () => {
       );
       applyAIGeneratedDiagram(result.nodes, result.edges);
       
+      // Log the generation to Supabase
+      if (session?.user?.id) {
+        logAiGeneration(
+          session.user.id,
+          currentProjectId,
+          projectDescription,
+          { nodes: result.nodes, edges: result.edges }
+        );
+      }
+
       // Auto-save the generated diagram immediately
       setProjectTitle(projectDescription.slice(0, 30) + (projectDescription.length > 30 ? "..." : ""));
       if (session?.user?.id) {
@@ -117,7 +129,7 @@ export const LeftLayersPanel = () => {
 
         {/* Mutable Diagram Type Toggle */}
         <div className="flex text-[10px] rounded-md overflow-hidden border border-border/80 p-0.5 bg-bg/50">
-          {(["dfd", "er", "sequence"] as const).map((type) => (
+          {(["dfd", "er", "flowchart", "sequence"] as const).map((type) => (
             <button
               key={type}
               onClick={() => setPreferredDiagramType(type)}

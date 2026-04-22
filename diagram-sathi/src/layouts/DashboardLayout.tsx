@@ -1,5 +1,5 @@
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
-import { UserCircle, Clock, FileText, FolderOpen, Trash2, Bot } from "lucide-react";
+import { UserCircle, Home, FileText, FolderOpen, Trash2 } from "lucide-react";
 
 export const DashboardLayout = () => {
   const navigate = useNavigate();
@@ -7,7 +7,7 @@ export const DashboardLayout = () => {
 
   const menuItems = [
     { name: "Profile", path: "/profile", icon: UserCircle },
-    { name: "Recent", path: "/home", icon: Clock },
+    { name: "Home", path: "/home", icon: Home },
     { name: "Drafts", path: "/drafts", icon: FileText },
     { name: "All Diagrams", path: "/projects", icon: FolderOpen },
     { name: "Trash", path: "/trash", icon: Trash2 },
@@ -20,18 +20,19 @@ export const DashboardLayout = () => {
 
       {/* ── LEFT SIDEBAR ── */}
       <aside className="relative z-10 w-64 h-full border-r border-white/5 bg-[#0E0E11] flex flex-col pt-6 pb-6 shadow-2xl shrink-0">
-        <div className="px-6 mb-10 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-md bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
-            <Bot className="w-4 h-4 text-neutral" />
-          </div>
-          <span className="font-bold text-lg tracking-tighter uppercase">
-            Diagram Sathi
-          </span>
-        </div>
+        {/* <div className="px-6 mb-10 flex items-center gap-3">
+          <img
+            src="/logo2.png"
+            alt="DiagramSathi"
+            className="h-16 w-auto object-contain drop-shadow-[0_0_8px_rgba(128,59,255,0.4)]"
+          />
+        </div> */}
 
         <nav className="flex-1 px-3 space-y-1">
           {menuItems.map((item) => {
-            const isActive = location.pathname === item.path || (location.pathname === '/' && item.path === '/home');
+            const isActive =
+              location.pathname === item.path ||
+              (location.pathname === "/" && item.path === "/home");
             return (
               <button
                 key={item.name}

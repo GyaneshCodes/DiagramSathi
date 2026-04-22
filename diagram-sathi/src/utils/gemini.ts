@@ -19,7 +19,7 @@ export interface AIGeneratedDiagram {
 
 export const generateDiagramFromDescription = async (
   description: string,
-  preferredType: "auto" | "dfd" | "er" | "sequence" = "auto",
+  preferredType: "auto" | "dfd" | "er" | "flowchart" | "sequence" = "auto",
   maxRetries = 3
 ): Promise<AIGeneratedDiagram> => {
   let lastError: any = null;

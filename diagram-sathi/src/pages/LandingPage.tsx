@@ -1,7 +1,6 @@
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
-  Sparkles,
   Github,
   Linkedin,
   Send,
@@ -125,10 +124,11 @@ export function LandingPage() {
           className="fixed top-0 left-0 w-full px-6 py-5 md:px-10 md:py-6 flex justify-between items-center z-50 bg-[#12101aed] border-b border-white\/[0.04]"
         >
           <div className="flex items-center gap-2.5 font-bold text-lg tracking-tighter">
-            <div className="w-7 h-7 rounded-md bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
-              <Sparkles className="w-3.5 h-3.5 text-neutral" />
-            </div>
-            <span className="hidden sm:inline">DIAGRAM SATHI</span>
+            <img
+              src="/logo2.png"
+              alt="DiagramSathi"
+              className="h-18 w-auto object-contain drop-shadow-[0_0_8px_rgba(128,59,255,0.4)]"
+            />
           </div>
 
           <div className="flex items-center gap-6">

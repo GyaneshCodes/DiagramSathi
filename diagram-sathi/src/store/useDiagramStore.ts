@@ -36,7 +36,7 @@ interface DiagramState {
   // AST representation
   nodes: DfdNode[];
   edges: DfdEdge[];
-  diagramType: "dfd" | "er";
+  diagramType: "dfd" | "er" | "flowchart";
 
   // Layout trigger — incremented only when a brand-new diagram is generated
   layoutVersion: number;
@@ -44,7 +44,7 @@ interface DiagramState {
   // AI Generation State
   projectDescription: string;
   isGenerating: boolean;
-  preferredDiagramType: "auto" | "dfd" | "er" | "sequence";
+  preferredDiagramType: "auto" | "dfd" | "er" | "flowchart" | "sequence";
 
   // Persistence State
   currentProjectId: string | null;
@@ -67,7 +67,7 @@ interface DiagramState {
   forceLayoutRefresh: () => void;
   setProjectDescription: (desc: string) => void;
   setIsGenerating: (isGenerating: boolean) => void;
-  setPreferredDiagramType: (type: "auto" | "dfd" | "er" | "sequence") => void;
+  setPreferredDiagramType: (type: "auto" | "dfd" | "er" | "flowchart" | "sequence") => void;
 
   setSelectedNodeId: (id: string | null) => void;
   setSelectedEdgeId: (id: string | null) => void;
@@ -82,7 +82,7 @@ interface DiagramState {
   setProjectTitle: (title: string) => void;
   loadProject: (id: string) => Promise<void>;
   saveProject: (userId: string, isDraft?: boolean) => Promise<void>;
-  resetToBlank: () => void;
+  resetToBlank: (diagramType?: "dfd" | "er" | "flowchart") => void;
 
   // AI Generation
   applyAIGeneratedDiagram: (
@@ -117,7 +117,7 @@ const DEFAULT_CODE = `graph TD
 const generateMermaidFromAst = (
   nodes: DfdNode[],
   edges: DfdEdge[],
-  diagramType: "dfd" | "er" = "dfd",
+  diagramType: "dfd" | "er" | "flowchart" = "dfd",
   direction: "TB" | "LR" = "TB",
 ): string => {
   if (diagramType === "er") {
@@ -548,15 +548,18 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   setCurrentProjectId: (id) => set({ currentProjectId: id }),
   setProjectTitle: (title) => set({ projectTitle: title }),
 
-  resetToBlank: () => {
+  resetToBlank: (diagramType?: "dfd" | "er" | "flowchart") => {
+    const type = diagramType || "dfd";
     set({
       currentProjectId: null,
       projectTitle: "Untitled Diagram",
       projectStatus: "active",
       projectDescription: "",
       isGenerating: false,
-      mermaidCode: `graph TD\n  %% DiagramSathi - Blank Canvas\n`,
-      diagramType: "dfd",
+      mermaidCode: type === "er"
+        ? `erDiagram\n  %% DiagramSathi - Blank ER Canvas\n`
+        : `graph TD\n  %% DiagramSathi - Blank Canvas\n`,
+      diagramType: type,
       nodes: [],
       edges: [],
       selectedNodeId: null,

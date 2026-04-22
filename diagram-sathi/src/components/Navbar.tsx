@@ -1,20 +1,60 @@
-import { useState } from "react";
-import { Settings, UserCircle, Share2, Download, X, ArrowLeft, Save } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Settings, UserCircle, Share2, Download, X, ArrowLeft, Save, Pencil } from "lucide-react";
 import { toPng } from "html-to-image";
 import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 import { useDiagramStore } from "../store/useDiagramStore";
 import { useAuth } from "../context/AuthContext";
+import { renameProject } from "../lib/projects";
 
 export const Navbar = () => {
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isTransparent, setIsTransparent] = useState(true);
   const navigate = useNavigate();
   const { session } = useAuth();
-  const { saveProject, projectTitle, projectStatus, currentProjectId } = useDiagramStore();
+  const { saveProject, projectTitle, setProjectTitle, projectStatus, currentProjectId } = useDiagramStore();
 
-  const handleSaveAsDraft = async () => {
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  const renameInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isRenaming) {
+      setTimeout(() => renameInputRef.current?.focus(), 50);
+    }
+  }, [isRenaming]);
+
+  const handleStartRename = () => {
+    setIsRenaming(true);
+    setRenameValue(projectTitle);
+  };
+
+  const handleCommitRename = async () => {
+    const trimmed = renameValue.trim();
+    if (!trimmed) {
+      setIsRenaming(false);
+      return;
+    }
+    
+    const prevTitle = projectTitle;
+    setProjectTitle(trimmed);
+    
+    if (currentProjectId) {
+      try {
+        await renameProject(currentProjectId, trimmed);
+        toast.success("Renamed successfully");
+      } catch {
+        toast.error("Failed to rename");
+        setProjectTitle(prevTitle);
+      }
+    }
+    setIsRenaming(false);
+  };
+
+  const handleDraftToggle = async () => {
     if (!session?.user?.id) return;
-    await saveProject(session.user.id, true);
+    const isCurrentlyDraft = projectStatus === "draft";
+    await saveProject(session.user.id, !isCurrentlyDraft);
   };
 
   const handleExport = () => {
@@ -62,8 +102,31 @@ export const Navbar = () => {
           >
             <ArrowLeft size={20} />
           </button>
-          <div className="flex flex-col">
-            <span className="text-sm font-semibold text-slate-200 truncate max-w-[200px]">{projectTitle}</span>
+          <div className="flex flex-col min-w-0">
+            {isRenaming ? (
+              <input
+                ref={renameInputRef}
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onBlur={handleCommitRename}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleCommitRename();
+                  if (e.key === "Escape") setIsRenaming(false);
+                }}
+                className="text-sm font-semibold text-slate-200 bg-[#0f111a] border border-indigo-500/50 rounded px-1.5 py-0 outline-none w-full max-w-[200px]"
+              />
+            ) : (
+              <div 
+                className="group flex items-center gap-1.5 cursor-pointer max-w-[200px]"
+                onClick={handleStartRename}
+                title="Rename diagram"
+              >
+                <span className="text-sm font-semibold text-slate-200 truncate border border-transparent rounded px-1 -mx-1 hover:border-slate-700 hover:bg-slate-800/50 transition-colors">
+                  {projectTitle}
+                </span>
+                <Pencil className="w-3 h-3 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+              </div>
+            )}
             <span className={`text-[10px] uppercase tracking-wider font-medium ${projectStatus === 'draft' ? 'text-amber-500' : 'text-emerald-500'}`}>
                {currentProjectId ? (projectStatus === 'draft' ? 'Draft - Auto Saved' : 'Saved') : 'Unsaved'}
             </span>
@@ -85,15 +148,15 @@ export const Navbar = () => {
           </button>
 
           <button
-            onClick={handleSaveAsDraft}
+            onClick={handleDraftToggle}
             className={`px-4 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-colors ml-2 cursor-pointer ${
               projectStatus === "draft" 
                 ? "bg-amber-500/20 text-amber-500 border border-amber-500/30"
                 : "bg-slate-800/80 text-slate-300 border border-slate-700 hover:bg-slate-700"
             }`}
-            title="Mark as Draft"
+            title={projectStatus === "draft" ? "Remove from Draft" : "Mark as Draft"}
           >
-            <Save size={16} /> Mark as Draft
+            <Save size={16} /> {projectStatus === "draft" ? "Remove from Draft" : "Mark as Draft"}
           </button>
           
           <button
