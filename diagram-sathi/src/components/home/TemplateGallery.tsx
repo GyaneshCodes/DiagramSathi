@@ -37,7 +37,8 @@ export function TemplateGallery() {
   const navigate = useNavigate();
 
   const handleCreate = (type: "flowchart" | "dfd" | "er") => {
-    useDiagramStore.getState().resetToBlank(type);
+    const mappedType = type === "er" ? "dfd" : type;
+    useDiagramStore.getState().resetToBlank(mappedType);
     navigate("/editor");
   };
 

@@ -9,6 +9,7 @@ import {
   LayoutGrid,
   Trash2,
   Plus,
+  Info,
 } from "lucide-react";
 import { generateDiagramFromDescription } from "../../utils/gemini";
 import { useEffect } from "react";
@@ -37,6 +38,8 @@ export const LeftLayersPanel = () => {
     applyAIGeneratedDiagram,
     preferredDiagramType,
     setPreferredDiagramType,
+    dfdLevel,
+    setDfdLevel,
     selectedNodeId,
     setSelectedNodeId,
     selectedEdgeId,
@@ -59,6 +62,7 @@ export const LeftLayersPanel = () => {
       const result = await generateDiagramFromDescription(
         projectDescription,
         preferredDiagramType,
+        dfdLevel
       );
       applyAIGeneratedDiagram(result.nodes, result.edges);
       
@@ -128,20 +132,56 @@ export const LeftLayersPanel = () => {
         />
 
         {/* Mutable Diagram Type Toggle */}
-        <div className="flex text-[10px] rounded-md overflow-hidden border border-border/80 p-0.5 bg-bg/50">
-          {(["dfd", "er", "flowchart", "sequence"] as const).map((type) => (
-            <button
-              key={type}
-              onClick={() => setPreferredDiagramType(type)}
-              className={`flex-1 py-1 text-center font-medium rounded-sm transition-colors ${
-                preferredDiagramType === type
-                  ? "bg-primary text-white shadow-sm"
-                  : "text-neutral/60 hover:text-neutral hover:bg-neutral/10"
-              }`}
-            >
-              {type.toUpperCase()}
-            </button>
-          ))}
+        <div className="flex flex-col gap-2">
+          <div className="flex text-[10px] rounded-md overflow-hidden border border-border/80 p-0.5 bg-bg/50">
+            {(["dfd", "flowchart"] as const).map((type) => (
+              <button
+                key={type}
+                onClick={() => setPreferredDiagramType(type)}
+                className={`flex-1 py-1.5 text-center font-medium rounded-sm transition-colors ${
+                  preferredDiagramType === type
+                    ? "bg-primary text-white shadow-sm"
+                    : "text-neutral/60 hover:text-neutral hover:bg-neutral/10"
+                }`}
+              >
+                {type.toUpperCase()}
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px] text-neutral/50 italic px-1">
+            {preferredDiagramType === "flowchart"
+              ? "The Step-by-Step Logic Builder. Focus on the sequential 'how-to' of a task."
+              : "The System Information Map. Focus on the movement and transformation of data."}
+          </p>
+
+          {preferredDiagramType === "dfd" && (
+            <div className="flex flex-col gap-1 mt-1">
+              <div className="flex items-center gap-1 px-1">
+                <span className="text-[10px] font-semibold text-neutral/50 uppercase">DFD Level</span>
+                <div className="group relative flex items-center">
+                  <Info size={12} className="text-neutral/40 cursor-help" />
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-48 p-2 bg-bg/90 backdrop-blur-xl border border-border/80 text-[10px] text-neutral rounded shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
+                    Level 0 shows the system as a whole; Level 1 shows the internal parts.
+                  </div>
+                </div>
+              </div>
+              <div className="flex text-[10px] rounded-md overflow-hidden border border-border/80 p-0.5 bg-bg/50">
+                {[0, 1].map((level) => (
+                  <button
+                    key={level}
+                    onClick={() => setDfdLevel(level)}
+                    className={`flex-1 py-1.5 text-center font-medium rounded-sm transition-colors ${
+                      dfdLevel === level
+                        ? "bg-primary text-white shadow-sm"
+                        : "text-neutral/60 hover:text-neutral hover:bg-neutral/10"
+                    }`}
+                  >
+                    LEVEL {level}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <button

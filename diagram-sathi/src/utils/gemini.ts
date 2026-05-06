@@ -3,7 +3,8 @@ import { supabase } from '../lib/supabase';
 export interface AINode {
   id: string;
   label: string;
-  type: "rectangle" | "circle" | "cylinder" | "diamond" | "hexagon" | "parallelogram" | "square";
+  type: "rectangle" | "circle" | "cylinder" | "diamond" | "hexagon" | "parallelogram" | "square" | "group";
+  parentId?: string;
 }
 
 export interface AIEdge {
@@ -20,6 +21,7 @@ export interface AIGeneratedDiagram {
 export const generateDiagramFromDescription = async (
   description: string,
   preferredType: "auto" | "dfd" | "er" | "flowchart" | "sequence" = "auto",
+  dfdLevel: number = 0,
   maxRetries = 3
 ): Promise<AIGeneratedDiagram> => {
   let lastError: any = null;
@@ -30,7 +32,7 @@ export const generateDiagramFromDescription = async (
 
       const { data, error } = await Promise.race([
         supabase.functions.invoke('generate-diagram', {
-          body: { description, preferredType }
+          body: { description, preferredType, dfdLevel }
         }),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Request timed out. The AI service may be slow — please try again.")), 30000))
       ]);

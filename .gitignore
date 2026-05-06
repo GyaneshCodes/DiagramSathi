@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 .agent
+.agents
 
 # Editor directories and files
 .vscode/*
@@ -23,3 +24,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# keep graph outputs, skip heavy/local-only files
+
+graphify-out/

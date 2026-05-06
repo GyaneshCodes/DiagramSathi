@@ -1,0 +1,268 @@
+import { Handle, Position, NodeResizer, type NodeProps, type Node } from "@xyflow/react";
+import { useDiagramStore } from "../../store/useDiagramStore";
+
+const handleClass =
+  "!w-2 !h-2 !bg-[#6366f1] !border-2 !border-slate-800 !opacity-0 group-hover:!opacity-100 transition-opacity";
+
+const renderHandles = (offsets?: {
+  top?: string;
+  bottom?: string;
+  left?: string;
+  right?: string;
+}) => (
+  <>
+    <Handle
+      type="source"
+      position={Position.Top}
+      id="top-source"
+      className={handleClass}
+      style={offsets?.top ? { top: offsets.top, bottom: "auto" } : undefined}
+    />
+    <Handle
+      type="target"
+      position={Position.Top}
+      id="top-target"
+      className={handleClass}
+      style={offsets?.top ? { top: offsets.top, bottom: "auto" } : undefined}
+    />
+
+    <Handle
+      type="source"
+      position={Position.Bottom}
+      id="bottom-source"
+      className={handleClass}
+      style={offsets?.bottom ? { bottom: offsets.bottom, top: "auto" } : undefined}
+    />
+    <Handle
+      type="target"
+      position={Position.Bottom}
+      id="bottom-target"
+      className={handleClass}
+      style={offsets?.bottom ? { bottom: offsets.bottom, top: "auto" } : undefined}
+    />
+
+    <Handle
+      type="source"
+      position={Position.Left}
+      id="left-source"
+      className={handleClass}
+      style={offsets?.left ? { left: offsets.left, right: "auto" } : undefined}
+    />
+    <Handle
+      type="target"
+      position={Position.Left}
+      id="left-target"
+      className={handleClass}
+      style={offsets?.left ? { left: offsets.left, right: "auto" } : undefined}
+    />
+
+    <Handle
+      type="source"
+      position={Position.Right}
+      id="right-source"
+      className={handleClass}
+      style={offsets?.right ? { right: offsets.right, left: "auto" } : undefined}
+    />
+    <Handle
+      type="target"
+      position={Position.Right}
+      id="right-target"
+      className={handleClass}
+      style={offsets?.right ? { right: offsets.right, left: "auto" } : undefined}
+    />
+  </>
+);
+
+const svgPathClasses = "group-hover:shadow-[0_0_15px_rgba(99,102,241,0.2)] transition-shadow";
+
+export const RectangleNode = ({ data, id, selected }: NodeProps<Node>) => {
+  const updateNode = useDiagramStore((state) => state.updateNode);
+  const color = (data.color as string) || "#6366f1";
+
+  return (
+    <div className="w-fit h-fit min-w-[160px] min-h-[60px] relative group flex items-center justify-center">
+      <NodeResizer
+        color="#6366f1"
+        isVisible={!!selected}
+        minWidth={160}
+        minHeight={60}
+        onResizeEnd={(_, { width, height }) => updateNode(id, { width, height })}
+      />
+      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <rect x="2" y="2" width="96" height="96" rx="4" fill="#1e293b" stroke={color} strokeWidth="2" className={svgPathClasses} />
+      </svg>
+      <div className="px-6 py-4 text-sm font-bold text-slate-200 z-10 wrap-break-word whitespace-normal relative text-center pointer-events-none max-w-[260px]">
+        {String(data.label)}
+      </div>
+      {renderHandles()}
+    </div>
+  );
+};
+
+export const SquareNode = ({ data, id, selected }: NodeProps<Node>) => {
+  const updateNode = useDiagramStore((state) => state.updateNode);
+  const color = (data.color as string) || "#6366f1";
+
+  return (
+    <div className="w-fit h-fit min-w-[120px] min-h-[120px] aspect-square relative group flex items-center justify-center">
+      <NodeResizer
+        color="#6366f1"
+        isVisible={!!selected}
+        minWidth={120}
+        minHeight={120}
+        keepAspectRatio
+        onResizeEnd={(_, { width, height }) => {
+          const size = Math.max(width, height);
+          updateNode(id, { width: size, height: size });
+        }}
+      />
+      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <rect x="2" y="2" width="96" height="96" rx="4" fill="#1e293b" stroke={color} strokeWidth="2" className={svgPathClasses} />
+      </svg>
+      <div className="px-6 py-6 text-sm font-bold text-slate-200 wrap-break-word whitespace-normal z-10 text-center pointer-events-none max-w-[240px]">
+        {String(data.label)}
+      </div>
+      {renderHandles()}
+    </div>
+  );
+};
+
+export const CircleNode = ({ data, id, selected }: NodeProps<Node>) => {
+  const updateNode = useDiagramStore((state) => state.updateNode);
+  const color = (data.color as string) || "#6366f1";
+
+  return (
+    <div className="w-fit h-fit min-w-[130px] min-h-[130px] aspect-square relative group flex items-center justify-center">
+      <NodeResizer
+        color="#6366f1"
+        isVisible={!!selected}
+        minWidth={130}
+        minHeight={130}
+        keepAspectRatio
+        onResizeEnd={(_, { width, height }) => {
+          const size = Math.max(width, height);
+          updateNode(id, { width: size, height: size });
+        }}
+      />
+      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+        <circle cx="50" cy="50" r="48" fill="#1e293b" stroke={color} strokeWidth="2" className={svgPathClasses} />
+      </svg>
+      <div className="px-8 py-8 text-sm font-bold text-slate-200 wrap-break-word whitespace-normal z-10 text-center pointer-events-none max-w-[240px]">
+        {String(data.label)}
+      </div>
+      {renderHandles()}
+    </div>
+  );
+};
+
+export const DiamondNode = ({ data, id, selected }: NodeProps<Node>) => {
+  const updateNode = useDiagramStore((state) => state.updateNode);
+  const color = (data.color as string) || "#6366f1";
+
+  return (
+    <div className="w-fit h-fit min-w-[130px] min-h-[130px] relative group flex items-center justify-center">
+      <NodeResizer
+        color="#6366f1"
+        isVisible={!!selected}
+        minWidth={130}
+        minHeight={130}
+        onResizeEnd={(_, { width, height }) => updateNode(id, { width, height })}
+      />
+      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <polygon points="50,2 98,50 50,98 2,50" fill="#1e293b" stroke={color} strokeWidth="2" className={svgPathClasses} />
+      </svg>
+      <div className="px-12 py-12 text-sm font-bold text-slate-200 wrap-break-word whitespace-normal max-w-[85%] z-10 text-center pointer-events-none leading-tight">
+        {String(data.label)}
+      </div>
+      {renderHandles({ top: "2%", bottom: "2%", left: "2%", right: "2%" })}
+    </div>
+  );
+};
+
+export const ParallelogramNode = ({ data, id, selected }: NodeProps<Node>) => {
+  const updateNode = useDiagramStore((state) => state.updateNode);
+  return (
+    <div className="w-fit h-fit min-w-[180px] min-h-[60px] relative group flex items-center justify-center">
+      <NodeResizer
+        color="#6366f1"
+        isVisible={!!selected}
+        minWidth={180}
+        minHeight={60}
+        onResizeEnd={(_, { width, height }) => updateNode(id, { width, height })}
+      />
+      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <polygon points="20,2 98,2 80,98 2,98" className={svgPathClasses} />
+      </svg>
+      <div className="px-10 py-4 text-sm font-bold text-slate-200 wrap-break-word whitespace-normal max-w-[85%] z-10 text-center pointer-events-none">
+        {String(data.label)}
+      </div>
+      {renderHandles({ left: "11%", right: "11%" })}
+    </div>
+  );
+};
+
+export const HexagonNode = ({ data, id, selected }: NodeProps<Node>) => {
+  const updateNode = useDiagramStore((state) => state.updateNode);
+  return (
+    <div className="w-fit h-fit min-w-[160px] min-h-[70px] relative group flex items-center justify-center">
+      <NodeResizer
+        color="#6366f1"
+        isVisible={!!selected}
+        minWidth={160}
+        minHeight={70}
+        onResizeEnd={(_, { width, height }) => updateNode(id, { width, height })}
+      />
+      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <polygon points="15,2 85,2 98,50 85,98 15,98 2,50" className={svgPathClasses} />
+      </svg>
+      <div className="px-12 py-4 text-sm font-bold text-slate-200 wrap-break-word whitespace-normal max-w-[85%] z-10 text-center pointer-events-none">
+        {String(data.label)}
+      </div>
+      {renderHandles({ left: "2%", right: "2%" })}
+    </div>
+  );
+};
+
+export const CylinderNode = ({ data, id, selected }: NodeProps<Node>) => {
+  const updateNode = useDiagramStore((state) => state.updateNode);
+  const color = (data.color as string) || "#6366f1";
+
+  return (
+    <div className="w-fit h-fit min-w-[160px] min-h-[80px] relative group flex flex-col items-center justify-center">
+      <NodeResizer
+        color="#6366f1"
+        isVisible={!!selected}
+        minWidth={160}
+        minHeight={80}
+        onResizeEnd={(_, { width, height }) => updateNode(id, { width, height })}
+      />
+      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <path d="M 5,15 V 85 A 45,10 0 0 0 95,85 V 15 A 45,10 0 0 1 5,15 Z" fill="#1e293b" stroke={color} strokeWidth="2" className="opacity-90 transition-all group-hover:shadow-[0_0_15px_rgba(99,102,241,0.2)]" />
+        <path d="M 5,15 A 45,10 0 1 1 95,15 A 45,10 0 1 1 5,15 Z" fill="#1e293b" stroke={color} strokeWidth="2" className="opacity-90 transition-all" />
+      </svg>
+      <div className="px-8 py-6 mt-2 text-sm font-bold text-slate-200 wrap-break-word whitespace-normal max-w-[85%] z-10 text-center pointer-events-none">
+        {String(data.label)}
+      </div>
+      {renderHandles({ top: "15%", bottom: "5%", left: "5%", right: "5%" })}
+    </div>
+  );
+};
+
+export const GroupNode = () => {
+  return (
+    <div className="w-full h-full relative pointer-events-none opacity-0">
+      {/* Completely invisible grouping container */}
+    </div>
+  );
+};
+
+export const nodeTypes = {
+  rectangle: RectangleNode,
+  square: SquareNode,
+  circle: CircleNode,
+  diamond: DiamondNode,
+  parallelogram: ParallelogramNode,
+  hexagon: HexagonNode,
+  cylinder: CylinderNode,
+  group: GroupNode,
+};

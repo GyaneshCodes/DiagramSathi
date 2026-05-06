@@ -1,760 +1,295 @@
 import { create } from "zustand";
-import dagre from "dagre";
-import { getProject, createProject, updateProject } from "../lib/projects";
+import { getProject, updateProject, createProject } from "../lib/projects";
+import { applyElkLayout } from "../utils/elkLayout";
+import { measureNodes } from "../utils/measureNodes";
 
-// Basic structure for our Abstract Syntax Tree (AST) representing a DFD Level 0 diagram.
+// Basic structure for our Abstract Syntax Tree (AST) representing a DFD diagram.
 export interface DfdNode {
   id: string;
   label: string;
-  type:
-    | "rectangle"
-    | "square"
-    | "circle"
-    | "diamond"
-    | "parallelogram"
-    | "hexagon"
-    | "cylinder";
+  type: string;
   position?: { x: number; y: number };
   width?: number;
   height?: number;
-  color?: string; // Hex color
+  parentId?: string;
+  color?: string;
 }
 
 export interface DfdEdge {
   id: string;
   source: string;
   target: string;
-  label: string;
-  style?: "solid" | "dashed" | "dotted";
+  label?: string;
   animated?: boolean;
+  style?: "solid" | "dashed" | "dotted";
+  data?: {
+    startPoint?: { x: number; y: number };
+    bendPoints?: { x: number; y: number }[];
+    endPoint?: { x: number; y: number };
+  };
 }
 
 interface DiagramState {
-  // Raw text representation
-  mermaidCode: string;
-
-  // AST representation
   nodes: DfdNode[];
   edges: DfdEdge[];
-  diagramType: "dfd" | "er" | "flowchart";
-
-  // Layout trigger — incremented only when a brand-new diagram is generated
-  layoutVersion: number;
-
-  // AI Generation State
-  projectDescription: string;
-  isGenerating: boolean;
-  preferredDiagramType: "auto" | "dfd" | "er" | "flowchart" | "sequence";
-
-  // Persistence State
   currentProjectId: string | null;
   projectTitle: string;
-  projectStatus: "draft" | "active" | "trashed";
-
-  // UI State (Phase 1)
+  projectDescription: string;
+  diagramType: "dfd" | "er" | "flowchart";
+  preferredDiagramType: "dfd" | "flowchart";
+  dfdLevel: number;
+  layoutVersion: number;
+  isLayouting: boolean;
+  isGenerating: boolean;
+  activeTool: "cursor" | "pan";
   selectedNodeId: string | null;
   selectedEdgeId: string | null;
-  activeTool: "cursor" | "pan";
-  direction: "TB" | "LR";
+  isExporting: boolean;
   leftPanelCollapsed: boolean;
   rightPanelCollapsed: boolean;
   showCodeInRightPanel: boolean;
+  direction: "TB" | "LR";
+  mermaidCode: string;
 
   // Actions
-  setMermaidCode: (code: string) => void;
-  updateAstFromCode: (code: string) => void;
-  updateCodeFromAst: (nodes: DfdNode[], edges: DfdEdge[]) => void;
-  forceLayoutRefresh: () => void;
+  setNodes: (nodes: DfdNode[]) => void;
+  setEdges: (edges: DfdEdge[]) => void;
+  setCurrentProjectId: (id: string | null) => void;
+  setProjectTitle: (title: string) => void;
   setProjectDescription: (desc: string) => void;
-  setIsGenerating: (isGenerating: boolean) => void;
-  setPreferredDiagramType: (type: "auto" | "dfd" | "er" | "flowchart" | "sequence") => void;
-
+  setDiagramType: (type: "dfd" | "er" | "flowchart") => void;
+  setPreferredDiagramType: (type: "dfd" | "flowchart") => void;
+  setDfdLevel: (level: number) => void;
+  setIsGenerating: (is: boolean) => void;
+  setActiveTool: (tool: "cursor" | "pan") => void;
   setSelectedNodeId: (id: string | null) => void;
   setSelectedEdgeId: (id: string | null) => void;
-  setActiveTool: (tool: DiagramState["activeTool"]) => void;
-  setDirection: (direction: DiagramState["direction"]) => void;
+  setIsExporting: (exporting: boolean) => void;
   setLeftPanelCollapsed: (collapsed: boolean) => void;
   setRightPanelCollapsed: (collapsed: boolean) => void;
   setShowCodeInRightPanel: (show: boolean) => void;
-
-  // Persistence Actions
-  setCurrentProjectId: (id: string | null) => void;
-  setProjectTitle: (title: string) => void;
-  loadProject: (id: string) => Promise<void>;
-  saveProject: (userId: string, isDraft?: boolean) => Promise<void>;
-  resetToBlank: (diagramType?: "dfd" | "er" | "flowchart") => void;
-
-  // AI Generation
-  applyAIGeneratedDiagram: (
-    nodes: Omit<DfdNode, "position" | "width" | "height">[],
-    edges: Omit<DfdEdge, "id">[],
-  ) => void;
-
-  // Form Actions
-  addNode: (node: Omit<DfdNode, "id">) => void;
-  updateNode: (id: string, updates: Partial<DfdNode>) => void;
-  updateNodePosition: (id: string, position: { x: number; y: number }) => void;
+  setDirection: (dir: "TB" | "LR") => void;
+  setMermaidCode: (code: string) => void;
+  
+  addNode: (node: Partial<DfdNode>) => void;
+  addEdge: (edge: Partial<DfdEdge>) => void;
+  updateNode: (id: string, data: Partial<DfdNode>) => void;
+  updateEdge: (id: string, data: Partial<DfdEdge>) => void;
   removeNode: (id: string) => void;
-  addEdge: (edge: Omit<DfdEdge, "id">) => void;
-  updateEdge: (id: string, updates: Partial<DfdEdge>) => void;
   removeEdge: (id: string) => void;
+  applyAIGeneratedDiagram: (nodes: DfdNode[], edges: DfdEdge[]) => void;
+  loadProject: (projectId: string) => Promise<void>;
+  saveProject: (userId: string) => Promise<void>;
+  applyLayoutAsync: () => Promise<void>;
+  saveLayoutToSupabase: () => Promise<void>;
+  resetToBlank: (type: "dfd" | "flowchart") => void;
 }
 
-const DEFAULT_CODE = `graph TD
-  %% DiagramSathi Generated DFD
-  User[User] -->|Input Data| System((Main System))
-  System -->|Store Data| DB[(Database)]
-  %% @nodePosition: User 300 100
-  %% @nodeType: User rectangle
-  %% @nodePosition: System 300 350
-  %% @nodeType: System circle
-  %% @nodePosition: DB 300 650
-  %% @nodeType: DB cylinder
-`;
-
-// A very naive parser/generator for MVP.
-// In a production app, we would use a robust parser (e.g. jison or regex tokenizer)
-const generateMermaidFromAst = (
-  nodes: DfdNode[],
-  edges: DfdEdge[],
-  diagramType: "dfd" | "er" | "flowchart" = "dfd",
-  direction: "TB" | "LR" = "TB",
-): string => {
-  if (diagramType === "er") {
-    let code = "erDiagram\n  %% DiagramSathi Generated ER\n";
-    edges.forEach((e) => {
-      code += `  ${e.source} ||--o{ ${e.target} : "${e.label || "relates"}"\n`;
-    });
-    nodes.forEach((n) => {
-      const isConnected = edges.some(
-        (e) => e.source === n.id || e.target === n.id,
-      );
-      if (!isConnected) {
-        code += `  ${n.id} {\n  }\n`;
-      }
-    });
-    nodes.forEach((n) => {
-      if (n.position) {
-        code += `  %% @nodePosition: ${n.id} ${Math.round(n.position.x)} ${Math.round(n.position.y)}\n`;
-      }
-      if (n.width && n.height) {
-        code += `  %% @nodeSize: ${n.id} ${Math.round(n.width)} ${Math.round(n.height)}\n`;
-      }
-    });
-    return code;
-  }
-
-  let code = `graph ${direction}\n  %% DiagramSathi Generated Diagram\n`;
-
-  nodes.forEach((n) => {
-    let brackets = ["[", "]"];
-    switch (n.type) {
-      case "circle":
-        brackets = ["((", "))"];
-        break;
-      case "cylinder":
-        brackets = ["[(", ")]"];
-        break;
-      case "diamond":
-        brackets = ["{", "}"];
-        break;
-      case "hexagon":
-        brackets = ["{{", "}}"];
-        break;
-      case "parallelogram":
-        brackets = ["[/", "/]"];
-        break;
-      case "rectangle":
-      case "square":
-      default:
-        brackets = ["[", "]"];
-        break;
-    }
-    code += `  ${n.id}${brackets[0]}${n.label}${brackets[1]}\n`;
-  });
-
-  edges.forEach((e) => {
-    code += `  ${e.source} -->|${e.label}| ${e.target}\n`;
-  });
-
-  // Inject positional, type and size metadata at the bottom
-  nodes.forEach((n) => {
-    if (n.position) {
-      code += `  %% @nodePosition: ${n.id} ${Math.round(n.position.x)} ${Math.round(n.position.y)}\n`;
-    }
-    code += `  %% @nodeType: ${n.id} ${n.type}\n`;
-    if (n.color) {
-      code += `  %% @nodeColor: ${n.id} ${n.color}\n`;
-    }
-    if (n.width && n.height) {
-      code += `  %% @nodeSize: ${n.id} ${Math.round(n.width)} ${Math.round(n.height)}\n`;
-    }
-  });
-
-  edges.forEach((e) => {
-    if (e.style) {
-      code += `  %% @edgeStyle: ${e.id} ${e.style}\n`;
-    }
-    if (e.animated) {
-      code += `  %% @edgeAnimated: ${e.id} true\n`;
-    }
-  });
-
-  return code;
-};
-
-const parseMermaidToAst = (code: string) => {
-  const nodesMap = new Map<string, DfdNode>();
-  const edges: DfdEdge[] = [];
-  const positions: Record<string, { x: number; y: number }> = {};
-  const sizes: Record<string, { width: number; height: number }> = {};
-  const types: Record<string, string> = {};
-
-  const isEr = code.trim().startsWith("erDiagram");
-  const directionStr =
-    code.match(/graph\s+(TD|LR|BT|RL)/i)?.[1].toUpperCase() || "TB";
-  const lines = code.split("\n");
-
-  const posRegex =
-    /^\s*%%\s*@nodePosition:\s*([a-zA-Z0-9_]+)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s*$/;
-  const typeRegex =
-    /^\s*%%\s*@nodeType:\s*([a-zA-Z0-9_]+)\s+([a-zA-Z0-9_]+)\s*$/;
-  const sizeRegex =
-    /^\s*%%\s*@nodeSize:\s*([a-zA-Z0-9_]+)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s*$/;
-  const colorRegex =
-    /^\s*%%\s*@nodeColor:\s*([a-zA-Z0-9_]+)\s+(#[a-fA-F0-9]{3,8}|[a-zA-Z]+)\s*$/;
-  const edgeStyleRegex =
-    /^\s*%%\s*@edgeStyle:\s*([a-zA-Z0-9_]+)\s+([a-zA-Z]+)\s*$/;
-  const edgeAnimatedRegex =
-    /^\s*%%\s*@edgeAnimated:\s*([a-zA-Z0-9_]+)\s+true\s*$/;
-  // Matches edges
-  const dfdEdgeRegex =
-    /([a-zA-Z0-9_]+)(?:\[.*?\]|\(\(.*?\)\)|\[\(.*?\)\]|\{\{.*?\}\}|\{.*?\}|\[\/.*?\/\]|\[\\.*?\\\])?\s*(?:-->|---|-.->|==>)\s*(?:\|([^|]*)\|\s*)?([a-zA-Z0-9_]+)/;
-  // Matches Node definitions with all brackets
-  // 1=id, 2=cylinder, 3=circle, 4=hexagon, 5=diamond, 6=parallelogram, 7=parallelogramAlt, 8=trapezoid, 9=trapezoidAlt, 10=rectangle
-  const nodeDefRegex =
-    /([a-zA-Z0-9_]+)\s*(?:\[\((.*?)\)\]|\(\((.*?)\)\)|\{\{(.*?)\}\}|\{(.*?)\}|\[\/(.*?)\/\]|\[\\(.*?)\\\]|\[\/(.*?)\\\]|\[\\(.*?)\/\]|\[(.*?)\])/g;
-  // Matches ER edges e.g. CUSTOMER ||--o{ ORDER : "places"
-  const erEdgeRegex =
-    /([a-zA-Z0-9_-]+)\s+(?:\|\||}\||\}o|\|o|o\||o\}|\|\{|\{o|\{\||-\|)[-.]+(?:o\{|\|\||o\||\|\{|\}o|\}|\{|-\|)\s+([a-zA-Z0-9_-]+)(?:\s*:\s*(.*))?/;
-
-  lines.forEach((line) => {
-    // Parse positions
-    const posMatch = line.match(posRegex);
-    if (posMatch) {
-      const id = posMatch[1];
-      const x = parseFloat(posMatch[2]);
-      const y = parseFloat(posMatch[3]);
-      if (!isNaN(x) && !isNaN(y)) {
-        positions[id] = { x, y };
-      }
-      return;
-    }
-
-    const typeMatch = line.match(typeRegex);
-    if (typeMatch) {
-      types[typeMatch[1]] = typeMatch[2];
-      return;
-    }
-
-    const sizeMatch = line.match(sizeRegex);
-    if (sizeMatch) {
-      const id = sizeMatch[1];
-      const w = parseFloat(sizeMatch[2]);
-      const h = parseFloat(sizeMatch[3]);
-      if (!isNaN(w) && !isNaN(h)) {
-        sizes[id] = { width: w, height: h };
-      }
-      return;
-    }
-
-    const colorMatch = line.match(colorRegex);
-    if (colorMatch) {
-      const id = colorMatch[1];
-      const color = colorMatch[2];
-      const node = nodesMap.get(id);
-      if (node) node.color = color;
-      return;
-    }
-
-    const edgeStyleMatch = line.match(edgeStyleRegex);
-    if (edgeStyleMatch) {
-      const edgeId = edgeStyleMatch[1];
-      const style = edgeStyleMatch[2] as any;
-      const edge = edges.find((e) => e.id === edgeId);
-      if (edge) edge.style = style;
-      return;
-    }
-
-    const edgeAnimatedMatch = line.match(edgeAnimatedRegex);
-    if (edgeAnimatedMatch) {
-      const edgeId = edgeAnimatedMatch[1];
-      const edge = edges.find((e) => e.id === edgeId);
-      if (edge) edge.animated = true;
-      return;
-    }
-
-    if (isEr) {
-      const erMatch = line.match(erEdgeRegex);
-      if (erMatch) {
-        const source = erMatch[1];
-        const target = erMatch[2];
-        const label = (erMatch[3] || "").replace(/"/g, "").trim();
-
-        edges.push({
-          id: `e_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
-          source,
-          target,
-          label,
-        });
-
-        if (!nodesMap.has(source))
-          nodesMap.set(source, {
-            id: source,
-            label: source,
-            type: "rectangle",
-          });
-        if (!nodesMap.has(target))
-          nodesMap.set(target, {
-            id: target,
-            label: target,
-            type: "rectangle",
-          });
-      } else {
-        const entityMatch = line.match(/^\s*([a-zA-Z0-9_-]+)\s*\{/);
-        if (entityMatch) {
-          const id = entityMatch[1];
-          if (!nodesMap.has(id))
-            nodesMap.set(id, { id, label: id, type: "rectangle" });
-        }
-      }
-    } else {
-      // Parse DFD edges
-      const edgeMatch = line.match(dfdEdgeRegex);
-      if (edgeMatch) {
-        const source = edgeMatch[1];
-        const label = edgeMatch[2] || "";
-        const target = edgeMatch[3];
-
-        edges.push({
-          id: `e_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
-          source,
-          target,
-          label,
-        });
-
-        if (!nodesMap.has(source))
-          nodesMap.set(source, {
-            id: source,
-            label: source,
-            type: "rectangle",
-          });
-        if (!nodesMap.has(target))
-          nodesMap.set(target, {
-            id: target,
-            label: target,
-            type: "rectangle",
-          });
-      }
-
-      // Parse DFD node definitions
-      nodeDefRegex.lastIndex = 0; // Reset global regex state for each line
-      let ndMatch;
-      while ((ndMatch = nodeDefRegex.exec(line)) !== null) {
-        const id = ndMatch[1];
-
-        // 1=id, 2=cylinder, 3=circle, 4=hexagon, 5=diamond, 6=parallelogram, 7=parallelogramAlt, 8=trapezoid, 9=trapezoidAlt, 10=rectangle
-        let type: DfdNode["type"] = "rectangle";
-        let label = id;
-
-        if (ndMatch[2] !== undefined) {
-          type = "cylinder";
-          label = ndMatch[2];
-        } else if (ndMatch[3] !== undefined) {
-          type = "circle";
-          label = ndMatch[3];
-        } else if (ndMatch[4] !== undefined) {
-          type = "hexagon";
-          label = ndMatch[4];
-        } else if (ndMatch[5] !== undefined) {
-          type = "diamond";
-          label = ndMatch[5];
-        } else if (ndMatch[6] !== undefined || ndMatch[7] !== undefined) {
-          type = "parallelogram";
-          label = ndMatch[6] || ndMatch[7];
-        } else if (
-          ndMatch[8] !== undefined ||
-          ndMatch[9] !== undefined ||
-          ndMatch[10] !== undefined
-        ) {
-          type = "rectangle";
-          label = ndMatch[8] || ndMatch[9] || ndMatch[10];
-        }
-
-        if (nodesMap.has(id)) {
-          const existing = nodesMap.get(id)!;
-          existing.type = type;
-          existing.label = label || id;
-        } else {
-          nodesMap.set(id, { id, label: label || id, type });
-        }
-      }
-    }
-  });
-
-  const nodes = Array.from(nodesMap.values());
-  let needsLayout = false;
-
-  nodes.forEach((n) => {
-    // Explicit type override from metadata comments
-    if (types[n.id]) {
-      n.type = types[n.id] as DfdNode["type"];
-    }
-
-    if (positions[n.id]) {
-      n.position = positions[n.id];
-    } else {
-      needsLayout = true;
-    }
-
-    if (sizes[n.id]) {
-      n.width = sizes[n.id].width;
-      n.height = sizes[n.id].height;
-    }
-  });
-
-  if (needsLayout && nodes.length > 0) {
-    const dagreGraph = new dagre.graphlib.Graph();
-    dagreGraph.setDefaultEdgeLabel(() => ({}));
-    dagreGraph.setGraph({
-      ranksep: 120,
-      nodesep: 100,
-      edgesep: 40,
-      marginx: 50,
-      marginy: 50,
-    });
-
-    const getNodeDimensions = (n: DfdNode) => {
-      const w =
-        n.width ||
-        (n.type === "circle" || n.type === "square" || n.type === "diamond"
-          ? 140
-          : 180);
-      const h =
-        n.height ||
-        (n.type === "circle" || n.type === "square" || n.type === "diamond"
-          ? 140
-          : 60);
-      return { w, h };
-    };
-
-    nodes.forEach((n) => {
-      const { w, h } = getNodeDimensions(n);
-      dagreGraph.setNode(n.id, { width: w, height: h });
-    });
-
-    edges.forEach((e) => {
-      dagreGraph.setEdge(e.source, e.target);
-    });
-
-    dagre.layout(dagreGraph);
-
-    nodes.forEach((n) => {
-      const nodeWithPosition = dagreGraph.node(n.id);
-      if (nodeWithPosition) {
-        const { w, h } = getNodeDimensions(n);
-        n.position = {
-          x: nodeWithPosition.x - w / 2,
-          y: nodeWithPosition.y - h / 2,
-        };
-      }
-    });
-  }
-
-  return {
-    nodes,
-    edges,
-    diagramType: isEr ? ("er" as const) : ("dfd" as const),
-    direction: directionStr as "TB" | "LR",
-  };
-};
-
 export const useDiagramStore = create<DiagramState>((set, get) => ({
-  diagramType: "dfd",
-  mermaidCode: DEFAULT_CODE,
-  layoutVersion: 0,
-  projectDescription: "",
-  isGenerating: false,
-  preferredDiagramType: "auto",
-  
+  nodes: [],
+  edges: [],
   currentProjectId: null,
   projectTitle: "Untitled Diagram",
-  projectStatus: "draft",
-  
+  projectDescription: "",
+  diagramType: "dfd",
+  preferredDiagramType: "dfd",
+  dfdLevel: 0,
+  layoutVersion: 0,
+  isLayouting: false,
+  isGenerating: false,
+  activeTool: "cursor",
   selectedNodeId: null,
   selectedEdgeId: null,
-  activeTool: "cursor",
-  direction: "TB",
+  isExporting: false,
   leftPanelCollapsed: false,
   rightPanelCollapsed: false,
   showCodeInRightPanel: false,
-  nodes: [
-    {
-      id: "User",
-      label: "User",
-      type: "rectangle",
-      position: { x: 300, y: 100 },
-    },
-    {
-      id: "System",
-      label: "Main System",
-      type: "circle",
-      position: { x: 300, y: 350 },
-    },
-    {
-      id: "DB",
-      label: "Database",
-      type: "cylinder",
-      position: { x: 300, y: 650 },
-    },
-  ],
-  edges: [
-    { id: "e1", source: "User", target: "System", label: "Input Data" },
-    { id: "e2", source: "System", target: "DB", label: "Store Data" },
-  ],
+  direction: "LR",
+  mermaidCode: "",
 
-  setMermaidCode: (code) => {
-    set({ mermaidCode: code, layoutVersion: get().layoutVersion + 1 });
-    // Attempt bidirectional parse
-    get().updateAstFromCode(code);
-  },
-
-  setProjectDescription: (desc) => set({ projectDescription: desc }),
-  setIsGenerating: (isGenerating) => set({ isGenerating }),
-  setPreferredDiagramType: (type) => set({ preferredDiagramType: type }),
-
-  setSelectedNodeId: (id) => set({ selectedNodeId: id, selectedEdgeId: null }),
-  setSelectedEdgeId: (id) => set({ selectedEdgeId: id, selectedNodeId: null }),
-  setActiveTool: (tool) => set({ activeTool: tool }),
-  setDirection: (dir) => {
-    set({ direction: dir });
-    get().updateCodeFromAst(get().nodes, get().edges);
-  },
-  setLeftPanelCollapsed: (collapsed) => set({ leftPanelCollapsed: collapsed }),
-  setRightPanelCollapsed: (collapsed) =>
-    set({ rightPanelCollapsed: collapsed }),
-  setShowCodeInRightPanel: (show) => set({ showCodeInRightPanel: show }),
-
+  setNodes: (nodes) => set({ nodes }),
+  setEdges: (edges) => set({ edges }),
   setCurrentProjectId: (id) => set({ currentProjectId: id }),
   setProjectTitle: (title) => set({ projectTitle: title }),
+  setProjectDescription: (projectDescription) => set({ projectDescription }),
+  setDiagramType: (type) => set({ diagramType: type }),
+  setPreferredDiagramType: (type) => set({ preferredDiagramType: type }),
+  setDfdLevel: (level) => set({ dfdLevel: level }),
+  setIsGenerating: (isGenerating) => set({ isGenerating }),
+  setActiveTool: (tool) => set({ activeTool: tool }),
+  setSelectedNodeId: (id) => set({ selectedNodeId: id }),
+  setSelectedEdgeId: (id) => set({ selectedEdgeId: id }),
+  setIsExporting: (isExporting) => set({ isExporting }),
+  setLeftPanelCollapsed: (leftPanelCollapsed) => set({ leftPanelCollapsed }),
+  setRightPanelCollapsed: (rightPanelCollapsed) => set({ rightPanelCollapsed }),
+  setShowCodeInRightPanel: (showCodeInRightPanel) => set({ showCodeInRightPanel }),
+  setDirection: (direction) => {
+    set({ direction });
+    get().applyLayoutAsync();
+  },
+  setMermaidCode: (mermaidCode) => set({ mermaidCode }),
 
-  resetToBlank: (diagramType?: "dfd" | "er" | "flowchart") => {
-    const type = diagramType || "dfd";
+  addNode: (node) => {
+    const id = `node_${Math.random().toString(36).substr(2, 9)}`;
+    const newNode = { 
+      id, 
+      label: "New Node", 
+      type: "rectangle",
+      position: { x: Math.random() * 100, y: Math.random() * 100 },
+      ...node 
+    } as DfdNode;
+    set((state) => ({ nodes: [...state.nodes, newNode] }));
+  },
+
+  addEdge: (edge) => {
+    const id = `e_${get().edges.length + 1}_${Math.random().toString(36).substr(2, 4)}`;
+    const newEdge = { id, source: "", target: "", ...edge } as DfdEdge;
+    set((state) => ({ edges: [...state.edges, newEdge] }));
+  },
+
+  updateNode: (id, data) => {
+    set((state) => ({
+      nodes: state.nodes.map((n) => (n.id === id ? { ...n, ...data } : n)),
+    }));
+  },
+
+  updateEdge: (id, data) => {
+    set((state) => ({
+      edges: state.edges.map((e) => (e.id === id ? { ...e, ...data } : e)),
+    }));
+  },
+
+  removeNode: (id) => {
+    set((state) => ({
+      nodes: state.nodes.filter((n) => n.id !== id),
+      edges: state.edges.filter((e) => e.source !== id && e.target !== id),
+      selectedNodeId: state.selectedNodeId === id ? null : state.selectedNodeId,
+    }));
+  },
+
+  removeEdge: (id) => {
+    set((state) => ({
+      edges: state.edges.filter((e) => e.id !== id),
+      selectedEdgeId: state.selectedEdgeId === id ? null : state.selectedEdgeId,
+    }));
+  },
+
+  applyAIGeneratedDiagram: (nodes, edges) => {
+    set({ nodes, edges, layoutVersion: (get().layoutVersion + 1) % 1000 });
+    get().applyLayoutAsync();
+  },
+
+  resetToBlank: (type) => {
     set({
-      currentProjectId: null,
-      projectTitle: "Untitled Diagram",
-      projectStatus: "active",
-      projectDescription: "",
-      isGenerating: false,
-      mermaidCode: type === "er"
-        ? `erDiagram\n  %% DiagramSathi - Blank ER Canvas\n`
-        : `graph TD\n  %% DiagramSathi - Blank Canvas\n`,
-      diagramType: type,
       nodes: [],
       edges: [],
+      currentProjectId: null,
+      projectTitle: "Untitled Diagram",
+      projectDescription: "",
+      diagramType: type,
+      preferredDiagramType: type,
+      dfdLevel: 0,
       selectedNodeId: null,
       selectedEdgeId: null,
-      layoutVersion: get().layoutVersion + 1,
     });
   },
-  
-  loadProject: async (id: string) => {
+
+  loadProject: async (projectId) => {
     try {
-      const dbProject = await getProject(id);
-      set({
-        currentProjectId: dbProject.id,
-        projectTitle: dbProject.title,
-        projectStatus: dbProject.status,
-        mermaidCode: dbProject.mermaid_code || DEFAULT_CODE,
-        diagramType: dbProject.diagram_type,
-        layoutVersion: get().layoutVersion + 1,
-      });
-      // Optionally hydrate nodes/edges from ast_data if present
-      if (dbProject.ast_data && Array.isArray((dbProject.ast_data as any).nodes)) {
+      const project = await getProject(projectId);
+      if (project.ast_data) {
+        const { nodes, edges } = project.ast_data as any;
         set({
-           nodes: (dbProject.ast_data as any).nodes,
-           edges: (dbProject.ast_data as any).edges || []
+          nodes: nodes || [],
+          edges: edges || [],
+          currentProjectId: projectId,
+          projectTitle: project.title,
+          projectDescription: project.description || "",
+          diagramType: project.diagram_type,
+          layoutVersion: (get().layoutVersion + 1) % 1000,
         });
-      } else if (dbProject.mermaid_code) {
-        get().updateAstFromCode(dbProject.mermaid_code);
+      } else {
+        set({ 
+          currentProjectId: projectId, 
+          projectTitle: project.title,
+          projectDescription: project.description || "",
+          diagramType: project.diagram_type 
+        });
       }
     } catch (err) {
-      console.error("Failed to load project", err);
+      console.error("Failed to load project:", err);
     }
   },
 
-  saveProject: async (userId: string, forceDraft?: boolean) => {
-    const state = get();
-    // If forceDraft is undefined, retain current projectStatus
-    const finalStatus = forceDraft === true ? "draft" 
-                      : (forceDraft === false ? "active" 
-                      : (state.projectStatus || "active"));
-                      
-    const data = {
-      title: state.projectTitle || "Untitled Diagram",
-      mermaid_code: state.mermaidCode,
-      diagram_type: state.diagramType,
-      status: finalStatus,
-      ast_data: { nodes: state.nodes, edges: state.edges },
-    } as any;
+  saveProject: async (userId) => {
+    const { currentProjectId, nodes, edges, projectTitle, projectDescription, diagramType } = get();
+    
+    try {
+      if (currentProjectId) {
+        await updateProject(currentProjectId, {
+          title: projectTitle,
+          description: projectDescription,
+          ast_data: { nodes, edges },
+        });
+      } else {
+        const newProject = await createProject(userId, {
+          title: projectTitle,
+          description: projectDescription,
+          diagram_type: diagramType,
+          ast_data: { nodes, edges },
+          status: "active",
+        });
+        set({ currentProjectId: newProject.id });
+      }
+    } catch (err) {
+      console.error("Failed to save project:", err);
+    }
+  },
+
+  applyLayoutAsync: async () => {
+    const { nodes, edges, dfdLevel } = get();
+    if (nodes.length === 0) return;
+
+    set({ isLayouting: true });
 
     try {
-      if (state.currentProjectId) {
-        await updateProject(state.currentProjectId, data);
-        set({ projectStatus: finalStatus });
-      } else {
-        const newProj = await createProject(userId, data);
-        set({ 
-          currentProjectId: newProj.id, 
-          projectStatus: newProj.status 
-        });
-      }
+      // 1. Measure nodes (off-screen rendering to get precise dimensions)
+      const measuredNodes = await measureNodes(nodes);
+      
+      // 2. Run ELK layout
+      const { nodes: layoutedNodes, edges: layoutedEdges } = await applyElkLayout(
+        measuredNodes,
+        edges,
+        "LR",
+        dfdLevel
+      );
+
+      set({
+        nodes: layoutedNodes,
+        edges: layoutedEdges,
+        isLayouting: false,
+        layoutVersion: (get().layoutVersion + 1) % 1000,
+      });
+
+      // 3. Auto-save layout
+      get().saveLayoutToSupabase();
     } catch (err) {
-      console.error("Failed to save project", err);
+      console.error("ELK layout failed:", err);
+      set({ isLayouting: false });
     }
   },
 
-  updateAstFromCode: (code) => {
-    const {
-      nodes: parsedNodes,
-      edges: parsedEdges,
-      diagramType,
-      direction,
-    } = parseMermaidToAst(code);
-    set({
-      nodes: parsedNodes,
-      edges: parsedEdges,
-      diagramType,
-      direction: direction || get().direction,
-    });
-  },
+  saveLayoutToSupabase: async () => {
+    const { currentProjectId, nodes, edges } = get();
+    if (!currentProjectId) return;
 
-  updateCodeFromAst: (nodes, edges) => {
-    const newCode = generateMermaidFromAst(
-      nodes,
-      edges,
-      get().diagramType,
-      get().direction,
-    );
-    set({ mermaidCode: newCode, layoutVersion: get().layoutVersion + 1 });
-  },
-
-  applyAIGeneratedDiagram: (aiNodes, aiEdges) => {
-    const nodes: DfdNode[] = aiNodes.map((n, index) => ({
-      ...n,
-      id: n.id || `ai_${index}`,
-      label: n.label || n.id,
-      type: n.type || "rectangle",
-    }));
-    const edges: DfdEdge[] = aiEdges.map((e, index) => ({
-      ...e,
-      id: `e_ai_${index}_${Date.now()}`,
-    }));
-    set({
-      nodes,
-      edges,
-      diagramType: "dfd",
-      layoutVersion: get().layoutVersion + 1,
-    });
-    get().updateCodeFromAst(nodes, edges);
-  },
-
-  addNode: (nodeData) => {
-    const existingIds = get().nodes.map((n) => n.id);
-    let nextNum = 1;
-    while (existingIds.includes(`N${nextNum}`)) {
-      nextNum++;
+    try {
+      await updateProject(currentProjectId, {
+        ast_data: { nodes, edges },
+      });
+    } catch (err) {
+      console.error("Failed to save layout state", err);
     }
-    const id = `N${nextNum}`;
-    const newNode = {
-      ...nodeData,
-      id,
-      position: { x: 100, y: 100 },
-    } as DfdNode;
-    const newNodes = [...get().nodes, newNode];
-    set({ nodes: newNodes });
-    get().updateCodeFromAst(newNodes, get().edges);
-  },
-
-  updateNode: (id: string, updates: Partial<DfdNode>) => {
-    const newNodes = get().nodes.map((n: DfdNode) =>
-      n.id === id ? { ...n, ...updates } : n,
-    );
-    set({ nodes: newNodes });
-    get().updateCodeFromAst(newNodes, get().edges);
-  },
-
-  updateNodePosition: (id: string, position: { x: number; y: number }) => {
-    const currentNode = get().nodes.find((n) => n.id === id);
-    if (
-      currentNode?.position &&
-      currentNode.position.x === position.x &&
-      currentNode.position.y === position.y
-    ) {
-      return;
-    }
-
-    const newNodes = get().nodes.map((n: DfdNode) =>
-      n.id === id ? { ...n, position } : n,
-    );
-    set({ nodes: newNodes });
-    get().updateCodeFromAst(newNodes, get().edges);
-  },
-
-  removeNode: (id: string) => {
-    const newNodes = get().nodes.filter((n: DfdNode) => n.id !== id);
-    const newEdges = get().edges.filter(
-      (e: DfdEdge) => e.source !== id && e.target !== id,
-    );
-    set({ nodes: newNodes, edges: newEdges });
-    get().updateCodeFromAst(newNodes, newEdges);
-  },
-
-  addEdge: (edgeData: Omit<DfdEdge, "id">) => {
-    const id = `e_${Date.now()}`;
-    const newEdge = { ...edgeData, id };
-    const newEdges = [...get().edges, newEdge];
-    set({ edges: newEdges });
-    get().updateCodeFromAst(get().nodes, newEdges);
-  },
-
-  updateEdge: (id: string, updates: Partial<DfdEdge>) => {
-    const newEdges = get().edges.map((e: DfdEdge) =>
-      e.id === id ? { ...e, ...updates } : e,
-    );
-    set({ edges: newEdges });
-    get().updateCodeFromAst(get().nodes, newEdges);
-  },
-
-  removeEdge: (id: string) => {
-    const newEdges = get().edges.filter((e: DfdEdge) => e.id !== id);
-    set({ edges: newEdges });
-    get().updateCodeFromAst(get().nodes, newEdges);
-  },
-
-  forceLayoutRefresh: () => {
-    const cleanedCode = get()
-      .mermaidCode.split("\n")
-      .filter(
-        (line: string) =>
-          !line.trim().startsWith("%% @nodePosition:") &&
-          !line.trim().startsWith("%% @nodeSize:"),
-      )
-      .join("\n");
-    set({
-      mermaidCode: cleanedCode,
-      layoutVersion: get().layoutVersion + 1,
-    });
-    get().updateAstFromCode(cleanedCode);
   },
 }));
+

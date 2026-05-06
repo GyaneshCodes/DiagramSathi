@@ -57,37 +57,57 @@ export const Navbar = () => {
     await saveProject(session.user.id, !isCurrentlyDraft);
   };
 
-  const handleExport = () => {
-    const flowEl = document.querySelector(".react-flow") as HTMLElement;
-    if (!flowEl) return;
+  const { setIsExporting } = useDiagramStore();
 
-    const filter = (node: HTMLElement) => {
-      // Exclude the controls from the exported image
-      if (node?.classList?.contains("react-flow__controls")) {
-        return false;
-      }
-      return true;
-    };
+  const handleExport = async () => {
+    const viewportEl = document.querySelector(
+      ".react-flow__viewport"
+    ) as HTMLElement;
+    if (!viewportEl) return;
 
-    toPng(flowEl, {
+    // Flash-toggle: hide overlays before capture
+    setIsExporting(true);
+
+    // Wait one frame for React to flush the conditional render
+    await new Promise((r) => requestAnimationFrame(r));
+
+    const flowWrapper = document.querySelector(".react-flow") as HTMLElement;
+    const prevBg = flowWrapper?.style.background || "";
+
+    // Set the wrapper background for the capture phase
+    if (flowWrapper) {
+      flowWrapper.style.background = isTransparent ? "transparent" : "#09090b";
+    }
+
+    toPng(viewportEl, {
       backgroundColor: isTransparent ? "transparent" : "#09090b",
-      width: flowEl.offsetWidth,
-      height: flowEl.offsetHeight,
-      style: {
-        width: flowEl.offsetWidth.toString() + "px",
-        height: flowEl.offsetHeight.toString() + "px",
+      pixelRatio: 3,
+      filter: (node: HTMLElement) => {
+        // Extra safety: exclude any straggler controls
+        if (node?.classList?.contains("react-flow__controls")) return false;
+        if (node?.classList?.contains("react-flow__minimap")) return false;
+        if (node?.classList?.contains("react-flow__background")) return false;
+        return true;
       },
-      filter: filter,
     })
       .then((dataUrl) => {
         const link = document.createElement("a");
-        link.download = `diagram-${isTransparent ? "transparent" : "bg"}.png`;
+        link.download = `${projectTitle || "diagram"}-${isTransparent ? "transparent" : "bg"}.png`;
         link.href = dataUrl;
         link.click();
         setIsExportOpen(false);
+        toast.success("Diagram exported successfully!");
       })
       .catch((err) => {
         console.error("Failed to export diagram", err);
+        toast.error("Export failed. Please try again.");
+      })
+      .finally(() => {
+        // Restore overlays regardless of success or failure
+        if (flowWrapper) {
+          flowWrapper.style.background = prevBg;
+        }
+        setIsExporting(false);
       });
   };
 

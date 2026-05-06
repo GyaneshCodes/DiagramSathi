@@ -16,7 +16,6 @@ const SMART_CHIPS = [
 const DIAGRAM_TYPES = [
   { label: "Flowchart", value: "flowchart" as const },
   { label: "DFD (Data Flow Diagram)", value: "dfd" as const },
-  { label: "ERD (Entity Relationship Diagram)", value: "er" as const },
 ];
 
 function getGreeting(): string {
@@ -30,11 +29,12 @@ export function HeroSection() {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const [prompt, setPrompt] = useState("");
-  const [selectedType, setSelectedType] = useState<"flowchart" | "dfd" | "er">(
+  const [selectedType, setSelectedType] = useState<"flowchart" | "dfd">(
     "flowchart",
   );
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
+  const resetToBlank = useDiagramStore((s) => s.resetToBlank);
   const setProjectDescription = useDiagramStore((s) => s.setProjectDescription);
   const setIsGenerating = useDiagramStore((s) => s.setIsGenerating);
   const setPreferredDiagramType = useDiagramStore(
@@ -46,6 +46,10 @@ export function HeroSection() {
 
   const handleGenerate = () => {
     if (!prompt.trim()) return;
+    
+    // Reset the store to ensure we don't overwrite an existing open diagram
+    resetToBlank(selectedType);
+    
     setProjectDescription(prompt);
     setPreferredDiagramType(selectedType);
     setIsGenerating(true);

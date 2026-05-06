@@ -13,14 +13,11 @@ import {
   EdgeLabelRenderer,
   type EdgeProps,
   type InternalNode,
-  Handle,
   Position,
-  type NodeProps,
   type Node,
   type Edge,
   type Connection,
   addEdge as rfAddEdge,
-  NodeResizer,
   MarkerType,
   MiniMap,
   SelectionMode,
@@ -33,12 +30,15 @@ import {
 } from "../store/useDiagramStore";
 import { RefreshCw } from "lucide-react";
 import { getLayoutedElements } from "../utils/layoutGraph";
+import { getNodeDimensions } from "../utils/layoutConfiguration";
 import { TopToolbar } from "./ui/TopToolbar";
+import { nodeTypes } from "./diagram/Nodes";
+import { ElkPolylineEdge } from "./diagram/ElkPolylineEdge";
 
 /**
  * PaneCenterCanvas Module
- * 
- * This file contains the React Flow implementation that renders the central 
+ *
+ * This file contains the React Flow implementation that renders the central
  * diagramming canvas. It is responsible for bidirectional synchronization with
  * the Zustand store (`useDiagramStore`), dynamic auto-layout (Dagre), and handling
  * complex UI interactions like edge routing and custom node shapes.
@@ -46,13 +46,22 @@ import { TopToolbar } from "./ui/TopToolbar";
 
 // --- Custom Floating Edge Logic --- //
 
-// Helper to find the best cardinal position (Top, Bottom, Left, Right)
-// between two nodes based on their centers.
+/**
+ * Determines connection sides and coordinates for an edge.
+ *
+ * All edges between the same source→target pair connect on the SAME
+ * best side (based on relative node position). When multiple edges
+ * share a side, their connection points are offset to produce clean
+ * parallel arrows — matching standard DFD visual conventions.
+ *
+ * @param pairIndex  – this edge's index among edges between the same pair
+ * @param pairTotal  – total edges between the same source→target pair
+ */
 function getEdgeParams(
   source: InternalNode,
   target: InternalNode,
-  outIndex: number,
-  inIndex: number,
+  pairIndex: number,
+  pairTotal: number,
 ) {
   const sourceCenter = {
     x: source.internals.positionAbsolute.x + (source.measured.width ?? 0) / 2,
@@ -66,55 +75,26 @@ function getEdgeParams(
   const dx = targetCenter.x - sourceCenter.x;
   const dy = targetCenter.y - sourceCenter.y;
 
-  let sourcePos = Position.Bottom;
-  let targetPos = Position.Top;
+  // Pick the best side pair based on the dominant direction
+  let sourcePos: Position;
+  let targetPos: Position;
 
-  const isHorizontalMajor = Math.abs(dx) > Math.abs(dy);
-
-  // Distribute SOURCE handles based on outIndex (number of outgoing edges)
-  if (isHorizontalMajor) {
-    const primaryS = dx > 0 ? Position.Right : Position.Left;
-    const sides = [
-      primaryS,
-      dy > 0 ? Position.Bottom : Position.Top,
-      dy > 0 ? Position.Top : Position.Bottom,
-      dx > 0 ? Position.Left : Position.Right,
-    ];
-    sourcePos = sides[outIndex % 4];
+  if (Math.abs(dx) > Math.abs(dy)) {
+    // Horizontal — connect via Right↔Left sides
+    sourcePos = dx > 0 ? Position.Right : Position.Left;
+    targetPos = dx > 0 ? Position.Left : Position.Right;
   } else {
-    const primaryS = dy > 0 ? Position.Bottom : Position.Top;
-    const sides = [
-      primaryS,
-      dx > 0 ? Position.Right : Position.Left,
-      dx > 0 ? Position.Left : Position.Right,
-      dy > 0 ? Position.Top : Position.Bottom,
-    ];
-    sourcePos = sides[outIndex % 4];
+    // Vertical — connect via Bottom↔Top sides
+    sourcePos = dy > 0 ? Position.Bottom : Position.Top;
+    targetPos = dy > 0 ? Position.Top : Position.Bottom;
   }
 
-  // Distribute TARGET handles based on inIndex (number of incoming edges)
-  if (isHorizontalMajor) {
-    const primaryT = dx > 0 ? Position.Left : Position.Right;
-    const sides = [
-      primaryT,
-      dy > 0 ? Position.Top : Position.Bottom,
-      dy > 0 ? Position.Bottom : Position.Top,
-      dx > 0 ? Position.Right : Position.Left,
-    ];
-    targetPos = sides[inIndex % 4];
-  } else {
-    const primaryT = dy > 0 ? Position.Top : Position.Bottom;
-    const sides = [
-      primaryT,
-      dx > 0 ? Position.Left : Position.Right,
-      dx > 0 ? Position.Right : Position.Left,
-      dy > 0 ? Position.Bottom : Position.Top,
-    ];
-    targetPos = sides[inIndex % 4];
-  }
+  // For multiple edges between the same pair, offset along the side
+  const EDGE_SPACING = 18;
+  const offsetAmount =
+    pairTotal <= 1 ? 0 : (pairIndex - (pairTotal - 1) / 2) * EDGE_SPACING;
 
-  // Calculate coordinates of the center point of the chosen side
-  const getSideCenter = (node: InternalNode, pos: Position) => {
+  const getSidePoint = (node: InternalNode, pos: Position, offset: number) => {
     const x = node.internals?.positionAbsolute?.x ?? 0;
     const y = node.internals?.positionAbsolute?.y ?? 0;
     const w = node.measured?.width ?? 0;
@@ -122,20 +102,20 @@ function getEdgeParams(
 
     switch (pos) {
       case Position.Top:
-        return { x: x + w / 2, y };
+        return { x: x + w / 2 + offset, y };
       case Position.Bottom:
-        return { x: x + w / 2, y: y + h };
+        return { x: x + w / 2 + offset, y: y + h };
       case Position.Left:
-        return { x, y: y + h / 2 };
+        return { x, y: y + h / 2 + offset };
       case Position.Right:
-        return { x: x + w, y: y + h / 2 };
+        return { x: x + w, y: y + h / 2 + offset };
       default:
-        return { x: x + w / 2, y: y + h / 2 }; // fallback to center
+        return { x: x + w / 2, y: y + h / 2 };
     }
   };
 
-  const { x: sx, y: sy } = getSideCenter(source, sourcePos);
-  const { x: tx, y: ty } = getSideCenter(target, targetPos);
+  const { x: sx, y: sy } = getSidePoint(source, sourcePos, offsetAmount);
+  const { x: tx, y: ty } = getSidePoint(target, targetPos, offsetAmount);
 
   return { sx, sy, tx, ty, sourcePos, targetPos };
 }
@@ -163,14 +143,14 @@ const FloatingSmoothStepEdge = ({
   }
 
   try {
-    const outIndex = (data?.outIndex as number) ?? 0;
-    const inIndex = (data?.inIndex as number) ?? 0;
+    const pairIndex = (data?.pairIndex as number) ?? 0;
+    const pairTotal = (data?.pairTotal as number) ?? 1;
 
     const { sx, sy, tx, ty, sourcePos, targetPos } = getEdgeParams(
       sourceNode,
       targetNode,
-      outIndex,
-      inIndex,
+      pairIndex,
+      pairTotal,
     );
 
     // Safety: prevent zero-length paths that can crash some renderers
@@ -193,7 +173,7 @@ const FloatingSmoothStepEdge = ({
             <div
               style={{
                 position: "absolute",
-                transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+                transform: `translate(-50%, -100%) translate(${labelX}px,${labelY - 4}px)`,
                 padding: "4px 4px",
                 borderRadius: 4,
                 fontSize: 12,
@@ -216,370 +196,9 @@ const FloatingSmoothStepEdge = ({
   }
 };
 
-// --- Custom Nodes for DFD Symbols --- //
-
-const handleClass =
-  "!w-2 !h-2 !bg-[#6366f1] !border-2 !border-slate-800 !opacity-0 group-hover:!opacity-100 transition-opacity";
-
-const renderHandles = (offsets?: {
-  top?: string;
-  bottom?: string;
-  left?: string;
-  right?: string;
-}) => (
-  <>
-    <Handle
-      type="source"
-      position={Position.Top}
-      id="top-source"
-      className={handleClass}
-      style={offsets?.top ? { top: offsets.top, bottom: "auto" } : undefined}
-    />
-    <Handle
-      type="target"
-      position={Position.Top}
-      id="top-target"
-      className={handleClass}
-      style={offsets?.top ? { top: offsets.top, bottom: "auto" } : undefined}
-    />
-
-    <Handle
-      type="source"
-      position={Position.Bottom}
-      id="bottom-source"
-      className={handleClass}
-      style={
-        offsets?.bottom ? { bottom: offsets.bottom, top: "auto" } : undefined
-      }
-    />
-    <Handle
-      type="target"
-      position={Position.Bottom}
-      id="bottom-target"
-      className={handleClass}
-      style={
-        offsets?.bottom ? { bottom: offsets.bottom, top: "auto" } : undefined
-      }
-    />
-
-    <Handle
-      type="source"
-      position={Position.Left}
-      id="left-source"
-      className={handleClass}
-      style={offsets?.left ? { left: offsets.left, right: "auto" } : undefined}
-    />
-    <Handle
-      type="target"
-      position={Position.Left}
-      id="left-target"
-      className={handleClass}
-      style={offsets?.left ? { left: offsets.left, right: "auto" } : undefined}
-    />
-
-    <Handle
-      type="source"
-      position={Position.Right}
-      id="right-source"
-      className={handleClass}
-      style={
-        offsets?.right ? { right: offsets.right, left: "auto" } : undefined
-      }
-    />
-    <Handle
-      type="target"
-      position={Position.Right}
-      id="right-target"
-      className={handleClass}
-      style={
-        offsets?.right ? { right: offsets.right, left: "auto" } : undefined
-      }
-    />
-  </>
-);
-
-const svgPathClasses =
-  "group-hover:shadow-[0_0_15px_rgba(99,102,241,0.2)] transition-shadow";
-
-const RectangleNode = ({ data, id, selected }: NodeProps<Node>) => {
-  const updateNode = useDiagramStore((state) => state.updateNode);
-  const color = (data.color as string) || "#6366f1";
-
-  return (
-    <div className="w-full h-full relative group flex items-center justify-center">
-      <NodeResizer
-        color="#6366f1"
-        isVisible={selected}
-        minWidth={120}
-        minHeight={60}
-        onResizeEnd={(_, { width, height }) =>
-          updateNode(id, { width, height })
-        }
-      />
-      <svg
-        className="absolute inset-0 w-full h-full"
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-      >
-        <rect
-          x="2"
-          y="2"
-          width="96"
-          height="96"
-          rx="4"
-          fill="#1e293b"
-          stroke={color}
-          strokeWidth="2"
-          className={svgPathClasses}
-        />
-      </svg>
-      <div className="px-4 py-3 text-sm font-bold text-slate-200 z-10 wrap-break-word whitespace-normal relative text-center pointer-events-none max-w-[260px]">
-        {String(data.label)}
-      </div>
-      {renderHandles()}
-    </div>
-  );
-};
-
-const SquareNode = ({ data, id, selected }: NodeProps<Node>) => {
-  const updateNode = useDiagramStore((state) => state.updateNode);
-  const color = (data.color as string) || "#6366f1";
-
-  return (
-    <div
-      className="w-full h-full aspect-square relative group flex items-center justify-center"
-    >
-      <NodeResizer
-        color="#6366f1"
-        isVisible={selected}
-        minWidth={100}
-        minHeight={100}
-        keepAspectRatio
-        onResizeEnd={(_, { width, height }) => {
-          const size = Math.max(width, height);
-          updateNode(id, { width: size, height: size });
-        }}
-      />
-      <svg
-        className="absolute inset-0 w-full h-full"
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-      >
-        <rect
-          x="2"
-          y="2"
-          width="96"
-          height="96"
-          rx="4"
-          fill="#1e293b"
-          stroke={color}
-          strokeWidth="2"
-          className={svgPathClasses}
-        />
-      </svg>
-      <div className="px-4 py-4 text-sm font-bold text-slate-200 wrap-break-word whitespace-normal z-10 text-center pointer-events-none max-w-[240px]">
-        {String(data.label)}
-      </div>
-      {renderHandles()}
-    </div>
-  );
-};
-
-const CircleNode = ({ data, id, selected }: NodeProps<Node>) => {
-  const updateNode = useDiagramStore((state) => state.updateNode);
-  const color = (data.color as string) || "#6366f1";
-
-  return (
-    <div
-      className="w-full h-full aspect-square relative group flex items-center justify-center"
-    >
-      <NodeResizer
-        color="#6366f1"
-        isVisible={selected}
-        minWidth={100}
-        minHeight={100}
-        keepAspectRatio
-        onResizeEnd={(_, { width, height }) => {
-          const size = Math.max(width, height);
-          updateNode(id, { width: size, height: size });
-        }}
-      />
-      <svg
-        className="absolute inset-0 w-full h-full"
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-      >
-        <circle
-          cx="50"
-          cy="50"
-          r="48"
-          fill="#1e293b"
-          stroke={color}
-          strokeWidth="2"
-          className={svgPathClasses}
-        />
-      </svg>
-      <div className="px-6 py-6 text-sm font-bold text-slate-200 wrap-break-word whitespace-normal z-10 text-center pointer-events-none max-w-[240px]">
-        {String(data.label)}
-      </div>
-      {renderHandles()}
-    </div>
-  );
-};
-
-const DiamondNode = ({ data, id, selected }: NodeProps<Node>) => {
-  const updateNode = useDiagramStore((state) => state.updateNode);
-  const color = (data.color as string) || "#6366f1";
-
-  return (
-    <div className="w-full h-full relative group flex items-center justify-center">
-      <NodeResizer
-        color="#6366f1"
-        isVisible={selected}
-        minWidth={100}
-        minHeight={100}
-        onResizeEnd={(_, { width, height }) => {
-          updateNode(id, { width, height });
-        }}
-      />
-      <svg
-        className="absolute inset-0 w-full h-full"
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-      >
-        <polygon
-          points="50,2 98,50 50,98 2,50"
-          fill="#1e293b"
-          stroke={color}
-          strokeWidth="2"
-          className={svgPathClasses}
-        />
-      </svg>
-      <div className="px-10 py-10 text-sm font-bold text-slate-200 wrap-break-word whitespace-normal max-w-[85%] z-10 text-center pointer-events-none leading-tight">
-        {String(data.label)}
-      </div>
-      {/* Aligning handles strictly with Tip polygon points */}
-      {renderHandles({ top: "2%", bottom: "2%", left: "2%", right: "2%" })}
-    </div>
-  );
-};
-
-const ParallelogramNode = ({ data, id, selected }: NodeProps<Node>) => {
-  const updateNode = useDiagramStore((state) => state.updateNode);
-  return (
-    <div className="w-full h-full relative group flex items-center justify-center">
-      <NodeResizer
-        color="#6366f1"
-        isVisible={selected}
-        minWidth={120}
-        minHeight={60}
-        onResizeEnd={(_, { width, height }) =>
-          updateNode(id, { width, height })
-        }
-      />
-      <svg
-        className="absolute inset-0 w-full h-full"
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-      >
-        <polygon points="20,2 98,2 80,98 2,98" className={svgPathClasses} />
-      </svg>
-      <div className="px-8 py-4 text-sm font-bold text-slate-200 wrap-break-word whitespace-normal max-w-[85%] z-10 text-center pointer-events-none">
-        {String(data.label)}
-      </div>
-      {renderHandles({ left: "11%", right: "11%" })}
-    </div>
-  );
-};
-
-const HexagonNode = ({ data, id, selected }: NodeProps<Node>) => {
-  const updateNode = useDiagramStore((state) => state.updateNode);
-  return (
-    <div className="w-full h-full relative group flex items-center justify-center">
-      <NodeResizer
-        color="#6366f1"
-        isVisible={selected}
-        minWidth={120}
-        minHeight={60}
-        onResizeEnd={(_, { width, height }) =>
-          updateNode(id, { width, height })
-        }
-      />
-      <svg
-        className="absolute inset-0 w-full h-full"
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-      >
-        <polygon
-          points="15,2 85,2 98,50 85,98 15,98 2,50"
-          className={svgPathClasses}
-        />
-      </svg>
-      <div className="px-10 py-4 text-sm font-bold text-slate-200 wrap-break-word whitespace-normal max-w-[85%] z-10 text-center pointer-events-none">
-        {String(data.label)}
-      </div>
-      {renderHandles({ left: "2%", right: "2%" })}
-    </div>
-  );
-};
-
-const CylinderNode = ({ data, id, selected }: NodeProps<Node>) => {
-  const updateNode = useDiagramStore((state) => state.updateNode);
-  const color = (data.color as string) || "#6366f1";
-
-  return (
-    <div
-      className="w-full h-full relative group flex flex-col items-center justify-center"
-    >
-      <NodeResizer
-        color="#6366f1"
-        isVisible={selected}
-        minWidth={100}
-        minHeight={80}
-        onResizeEnd={(_, { width, height }) =>
-          updateNode(id, { width, height })
-        }
-      />
-      <svg
-        className="absolute inset-0 w-full h-full"
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-      >
-        <path
-          d="M 5,15 V 85 A 45,10 0 0 0 95,85 V 15 A 45,10 0 0 1 5,15 Z"
-          fill="#1e293b"
-          stroke={color}
-          strokeWidth="2"
-          className="opacity-90 transition-all group-hover:shadow-[0_0_15px_rgba(99,102,241,0.2)]"
-        />
-        <path
-          d="M 5,15 A 45,10 0 1 1 95,15 A 45,10 0 1 1 5,15 Z"
-          fill="#1e293b"
-          stroke={color}
-          strokeWidth="2"
-          className="opacity-90 transition-all"
-        />
-      </svg>
-      <div className="px-6 py-4 mt-2 text-sm font-bold text-slate-200 wrap-break-word whitespace-normal max-w-[85%] z-10 text-center pointer-events-none">
-        {String(data.label)}
-      </div>
-      {renderHandles({ top: "15%", bottom: "5%", left: "5%", right: "5%" })}
-    </div>
-  );
-};
-
-const nodeTypes = {
-  rectangle: RectangleNode,
-  square: SquareNode,
-  circle: CircleNode,
-  diamond: DiamondNode,
-  parallelogram: ParallelogramNode,
-  hexagon: HexagonNode,
-  cylinder: CylinderNode,
-};
-
 const edgeTypes = {
   smoothstep: FloatingSmoothStepEdge,
+  "elk-polyline": ElkPolylineEdge,
 };
 
 // ========================
@@ -598,6 +217,8 @@ const PaneCenterCanvasInner = () => {
   const selectedEdgeId = useDiagramStore((s) => s.selectedEdgeId);
   const setSelectedNodeId = useDiagramStore((s) => s.setSelectedNodeId);
   const setSelectedEdgeId = useDiagramStore((s) => s.setSelectedEdgeId);
+  const isExporting = useDiagramStore((s) => s.isExporting);
+  const isLayouting = useDiagramStore((s) => s.isLayouting);
 
   const [error, setError] = useState<string | null>(null);
 
@@ -620,57 +241,54 @@ const PaneCenterCanvasInner = () => {
         prevLayoutVersionRef.current = layoutVersion;
       }
 
-      let rfNodes: Node[] = astNodes.map((n: DfdNode, index: number) => ({
-        id: n.id,
-        type: n.type,
-        position: n.position || { x: 50 + index * 200, y: 100 },
-        width:
-          n.width ||
-          (() => {
-            const isComp =
-              n.type === "circle" ||
-              n.type === "square" ||
-              n.type === "diamond";
-            const baseW = isComp ? 140 : 180;
-            if (n.label.length < 15)
-              return Math.max(baseW, n.label.length * 9 + 40);
-            return Math.min(280, Math.max(baseW, n.label.length * 8 + 40));
-          })(),
-        height:
-          n.height ||
-          (() => {
-            const isComp =
-              n.type === "circle" ||
-              n.type === "square" ||
-              n.type === "diamond";
-            const baseH = isComp ? 140 : 60;
-            const charsPerLine = n.label.length > 20 ? 25 : n.label.length;
-            const lines = Math.ceil(n.label.length / charsPerLine);
-            return Math.max(baseH, lines * 24 + (isComp ? 60 : 30));
-          })(),
-        data: { label: n.label, color: n.color },
-        draggable: true,
-      }));
+      let rfNodes: Node[] = astNodes.map((n: DfdNode, index: number) => {
+        const dims = getNodeDimensions(n.type, n.width, n.height);
+        return {
+          id: n.id,
+          type: n.type,
+          position: n.position || { x: 50 + index * 200, y: 100 },
+          width: dims.width,
+          height: dims.height,
+          data: { label: n.label, color: n.color },
+          draggable: true,
+          ...(n.parentId ? { parentId: n.parentId } : {}),
+        };
+      });
+
+      // Group edges by source→target pair for parallel routing
+      const pairCounts = new Map<string, number>();
+      astEdges.forEach((e: DfdEdge) => {
+        const key = `${e.source}→${e.target}`;
+        pairCounts.set(key, (pairCounts.get(key) ?? 0) + 1);
+      });
+      const pairSeen = new Map<string, number>();
 
       let rfEdges: Edge[] = astEdges.map((e: DfdEdge) => {
-        const outEdges = astEdges
-          .filter((o) => o.source === e.source)
-          .sort((a, b) => a.id.localeCompare(b.id));
-        const outIndex = outEdges.findIndex((o) => o.id === e.id);
+        const key = `${e.source}→${e.target}`;
+        const pairTotal = pairCounts.get(key) ?? 1;
+        const pairIndex = pairSeen.get(key) ?? 0;
+        pairSeen.set(key, pairIndex + 1);
 
-        const inEdges = astEdges
-          .filter((i) => i.target === e.target)
-          .sort((a, b) => a.id.localeCompare(b.id));
-        const inIndex = inEdges.findIndex((i) => i.id === e.id);
+        // Use ELK polyline when we have full routing data from ELK
+        const hasElkRouting = e.data?.startPoint && e.data?.endPoint;
 
         return {
           id: e.id,
           source: e.source,
           target: e.target,
           label: e.label,
-          type: "smoothstep", // Resolves to FloatingSmoothStepEdge component
+          type:
+            diagramType === "dfd" && hasElkRouting
+              ? "elk-polyline"
+              : "smoothstep",
           animated: e.animated,
-          data: { outIndex, inIndex },
+          data: {
+            pairIndex,
+            pairTotal,
+            startPoint: e.data?.startPoint,
+            bendPoints: e.data?.bendPoints,
+            endPoint: e.data?.endPoint,
+          },
           markerEnd: {
             type: MarkerType.ArrowClosed,
             color: "#94a3b8",
@@ -690,13 +308,16 @@ const PaneCenterCanvasInner = () => {
 
       // Only run Dagre if layout is clean
       if (layoutAppliedRef.current === false) {
-        const { nodes: layoutedNodes, edges: layoutedEdges } =
-          getLayoutedElements(rfNodes, rfEdges, {
-            direction: diagramType === "er" ? "LR" : "TB",
-          });
-
-        rfNodes = layoutedNodes;
-        rfEdges = layoutedEdges;
+        if (diagramType !== "dfd") {
+          // Flowchart: apply Dagre layout in canvas
+          const { nodes: layoutedNodes, edges: layoutedEdges } =
+            getLayoutedElements(rfNodes, rfEdges, {
+              direction: "TB",
+            });
+          rfNodes = layoutedNodes;
+          rfEdges = layoutedEdges;
+        }
+        // DFD: positions come from ELK via the store, no canvas-level layout needed
         layoutAppliedRef.current = true;
 
         requestAnimationFrame(() => {
@@ -790,6 +411,15 @@ const PaneCenterCanvasInner = () => {
         </div>
       ) : null}
 
+      {isLayouting && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/40 backdrop-blur-[2px] pointer-events-none">
+          <div className="bg-panel/90 text-neutral px-4 py-3 rounded-lg shadow-xl border border-border/50 flex items-center gap-3">
+            <RefreshCw size={16} className="animate-spin text-indigo-400" />
+            <span className="text-sm font-medium">Computing layout…</span>
+          </div>
+        </div>
+      )}
+
       <div className="flex-1 w-full h-full" ref={flowWrapperRef}>
         <ReactFlow
           nodes={nodes}
@@ -818,16 +448,20 @@ const PaneCenterCanvasInner = () => {
             },
           }}
         >
-          <Background color="#334155" gap={16} />
-          <MiniMap
-            className="bg-panel! border-border/80! rounded-md shadow-lg"
-            maskColor="rgba(0,0,0,0.3)"
-            nodeColor="var(--primary)"
-          />
-          <Controls
-            showInteractive={true}
-            className="[&>button]:bg-panel! [&>button]:border-b-border! [&>button]:fill-neutral! hover:[&>button]:bg-border! shadow-lg border border-border rounded-md overflow-hidden"
-          />
+          {!isExporting && <Background color="#334155" gap={16} />}
+          {!isExporting && (
+            <MiniMap
+              className="bg-panel! border-border/80! rounded-md shadow-lg"
+              maskColor="rgba(0,0,0,0.3)"
+              nodeColor="var(--primary)"
+            />
+          )}
+          {!isExporting && (
+            <Controls
+              showInteractive={true}
+              className="[&>button]:bg-panel! [&>button]:border-b-border! [&>button]:fill-neutral! hover:[&>button]:bg-border! shadow-lg border border-border rounded-md overflow-hidden"
+            />
+          )}
         </ReactFlow>
       </div>
     </div>

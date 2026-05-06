@@ -53,7 +53,7 @@ export async function getProject(projectId: string) {
 /** Create a new project */
 export async function createProject(
   userId: string,
-  data: Partial<Pick<Project, "title" | "description" | "diagram_type" | "mermaid_code" | "ast_data" | "status">>,
+  data: Partial<Pick<Project, "title" | "description" | "diagram_type" | "mermaid_code" | "ast_data" | "status" | "canvas_settings">>,
 ) {
   const now = new Date().toISOString();
   const { data: newProject, error } = await supabase

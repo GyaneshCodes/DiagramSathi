@@ -31,6 +31,7 @@ export const RightPropertiesPanel = () => {
     setShowCodeInRightPanel,
     direction,
     setDirection,
+    diagramType,
   } = useDiagramStore();
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
@@ -129,14 +130,20 @@ export const RightPropertiesPanel = () => {
                 }
                 className="w-full text-xs bg-bg border border-border/80 rounded block p-2.5 text-neutral outline-none focus:border-primary cursor-pointer"
               >
-                <option value="rectangle">Rectangle (Process)</option>
-                <option value="circle">Circle (External Entity)</option>
-                <option value="cylinder">Cylinder (Data Store)</option>
-                <option value="diamond">Diamond (Decision)</option>
-                <option value="parallelogram">
-                  Parallelogram (Input/Output)
-                </option>
-                <option value="hexagon">Hexagon (Preparation)</option>
+                {diagramType === "flowchart" ? (
+                  <>
+                    <option value="rectangle">Rectangle (Process)</option>
+                    <option value="diamond">Diamond (Decision)</option>
+                    <option value="parallelogram">Parallelogram (Input/Output)</option>
+                    <option value="circle">Circle / Hexagon (Start/End)</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="rectangle">Rectangle (External Entity)</option>
+                    <option value="circle">Circle (Process)</option>
+                    <option value="cylinder">Cylinder (Data Store)</option>
+                  </>
+                )}
               </select>
             </div>
 
