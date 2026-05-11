@@ -53,6 +53,7 @@ interface DiagramState {
   direction: "TB" | "LR";
   mermaidCode: string;
   latestGeneratedNodeIds: string[];
+  projectStatus: "draft" | "active" | "trashed";
 
   // Actions
   setNodes: (nodes: DfdNode[]) => void;
@@ -82,8 +83,9 @@ interface DiagramState {
   removeEdge: (id: string) => void;
   applyAIGeneratedDiagram: (nodes: DfdNode[], edges: DfdEdge[]) => Promise<void>;
   loadProject: (projectId: string) => Promise<void>;
-  saveProject: (userId: string) => Promise<void>;
+  saveProject: (userId: string, isDraft?: boolean) => Promise<void>;
   applyLayoutAsync: () => Promise<void>;
+  forceLayoutRefresh: () => void;
   saveLayoutToSupabase: () => Promise<void>;
   resetToBlank: (type: "dfd" | "flowchart") => void;
 }
@@ -110,6 +112,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   direction: "LR",
   mermaidCode: "",
   latestGeneratedNodeIds: [],
+  projectStatus: "active",
 
   setNodes: (nodes) => set({ nodes }),
   setEdges: (edges) => set({ edges }),
@@ -257,6 +260,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       dfdLevel: 0,
       selectedNodeId: null,
       selectedEdgeId: null,
+      projectStatus: "active",
     });
   },
 
@@ -272,6 +276,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
           projectTitle: project.title,
           projectDescription: project.description || "",
           diagramType: project.diagram_type,
+          projectStatus: project.status,
           layoutVersion: (get().layoutVersion + 1) % 1000,
         });
       } else {
@@ -279,7 +284,8 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
           currentProjectId: projectId, 
           projectTitle: project.title,
           projectDescription: project.description || "",
-          diagramType: project.diagram_type 
+          diagramType: project.diagram_type,
+          projectStatus: project.status
         });
       }
     } catch (err) {
@@ -287,25 +293,33 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
     }
   },
 
-  saveProject: async (userId) => {
-    const { currentProjectId, nodes, edges, projectTitle, projectDescription, diagramType } = get();
+  saveProject: async (userId, isDraft) => {
+    const { currentProjectId, nodes, edges, projectTitle, projectDescription, diagramType, projectStatus } = get();
     
+    // Determine target status
+    let targetStatus = projectStatus;
+    if (isDraft !== undefined) {
+      targetStatus = isDraft ? "draft" : "active";
+    }
+
     try {
       if (currentProjectId) {
         await updateProject(currentProjectId, {
           title: projectTitle,
           description: projectDescription,
           ast_data: { nodes, edges },
+          status: targetStatus,
         });
+        set({ projectStatus: targetStatus });
       } else {
         const newProject = await createProject(userId, {
           title: projectTitle,
           description: projectDescription,
           diagram_type: diagramType,
           ast_data: { nodes, edges },
-          status: "active",
+          status: targetStatus || "active",
         });
-        set({ currentProjectId: newProject.id });
+        set({ currentProjectId: newProject.id, projectStatus: newProject.status });
       }
     } catch (err) {
       console.error("Failed to save project:", err);
@@ -343,6 +357,10 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       console.error("ELK layout failed:", err);
       set({ isLayouting: false });
     }
+  },
+
+  forceLayoutRefresh: () => {
+    get().applyLayoutAsync();
   },
 
   saveLayoutToSupabase: async () => {
