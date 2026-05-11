@@ -28,41 +28,20 @@ export async function applyElkLayout(
 
   const elkConfig = getElkConfig(direction, dfdLevel);
 
-  // ── 1. Build port registry ──────────────────────────────────────
-  // Each edge connection gets its own unique port on the source and
-  // target node. ELK will then distribute these ports along each
-  // side, preventing arrow overlap.
-  const nodePorts = new Map<string, ElkPort[]>();
-
-  edges.forEach((e) => {
-    // Source port
-    const srcPortId = `${e.id}_src`;
-    if (!nodePorts.has(e.source)) nodePorts.set(e.source, []);
-    nodePorts.get(e.source)!.push({
-      id: srcPortId,
-      layoutOptions: {
-        'elk.port.side': 'UNDEFINED',  // Let ELK choose the optimal side
-      },
-    });
-
-    // Target port
-    const tgtPortId = `${e.id}_tgt`;
-    if (!nodePorts.has(e.target)) nodePorts.set(e.target, []);
-    nodePorts.get(e.target)!.push({
-      id: tgtPortId,
-      layoutOptions: {
-        'elk.port.side': 'UNDEFINED',
-      },
-    });
-  });
-
-  // ── 2. Build ELK children from DfdNodes ─────────────────────────
+  // ── 1. Build ELK children from DfdNodes ─────────────────────────
   const childrenMap = new Map<string, ElkNode>();
   const rootChildren: ElkNode[] = [];
 
   nodes.forEach((n) => {
     const { width, height } = getNodeDimensions(n.type, n.width, n.height);
-    const ports = nodePorts.get(n.id) || [];
+    
+    // Inject 4 fixed ports for every node
+    const ports: ElkPort[] = [
+      { id: 'top',    layoutOptions: { 'elk.port.side': 'NORTH' } },
+      { id: 'right',  layoutOptions: { 'elk.port.side': 'EAST'  } },
+      { id: 'bottom', layoutOptions: { 'elk.port.side': 'SOUTH' } },
+      { id: 'left',   layoutOptions: { 'elk.port.side': 'WEST'  } },
+    ];
 
     const elkNode: ElkNode = {
       id: n.id,
@@ -75,8 +54,8 @@ export async function applyElkLayout(
             'elk.padding': '[top=40,left=40,bottom=40,right=40]',
           }
         : {
-            // Allow ELK to freely assign ports to any side
             'elk.portConstraints': 'FIXED_SIDE',
+            'elk.ports.portSpacing': '15',
           },
     };
     childrenMap.set(n.id, elkNode);
@@ -95,24 +74,32 @@ export async function applyElkLayout(
     }
   });
 
-  // ── 3. Build ELK edges with port references ─────────────────────
+  // ── 2. Build ELK edges ──────────────────────────────────────────
+  // Connect edges to nodes; ELK will pick the optimal port
   const elkEdges: ElkExtendedEdge[] = edges.map((e) => ({
     id: e.id,
-    sources: [`${e.id}_src`],
-    targets: [`${e.id}_tgt`],
+    sources: [e.source],
+    targets: [e.target],
   }));
 
   const graph: ElkNode = {
     id: 'root',
-    layoutOptions: elkConfig,
+    layoutOptions: {
+      ...elkConfig,
+      'elk.algorithm': 'layered',
+      'elk.edgeRouting': 'ORTHOGONAL',
+      'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
+      'elk.spacing.nodeNode': '80',
+      'elk.spacing.edgeEdge': '20',
+    },
     children: rootChildren,
     edges: elkEdges,
   };
 
-  // ── 4. Run ELK ──────────────────────────────────────────────────
+  // ── 3. Run ELK ──────────────────────────────────────────────────
   const layoutedGraph = await elk.layout(graph);
 
-  // ── 5. Extract node positions ───────────────────────────────────
+  // ── 4. Extract node positions ───────────────────────────────────
   const positionMap = new Map<string, { x: number; y: number }>();
   const sizeMap = new Map<string, { width: number; height: number }>();
 
@@ -144,49 +131,38 @@ export async function applyElkLayout(
     }
   }
 
-  // ── 6. Extract FULL edge routing (startPoint + bends + endPoint) ─
-  const edgeDataMap = new Map<string, {
-    startPoint: { x: number; y: number };
-    bendPoints: { x: number; y: number }[];
-    endPoint: { x: number; y: number };
-  }>();
+  // ── 5. Extract edge routing and port assignments ────────────────
+  const edgeRoutingMap = new Map<string, any>();
 
   if (layoutedGraph.edges) {
     layoutedGraph.edges.forEach((elkEdge: any) => {
       if (elkEdge.sections && elkEdge.sections.length > 0) {
         const section = elkEdge.sections[0];
-
-        const startPoint = section.startPoint
-          ? { x: section.startPoint.x, y: section.startPoint.y }
-          : null;
-        const endPoint = section.endPoint
-          ? { x: section.endPoint.x, y: section.endPoint.y }
-          : null;
-
-        const bendPoints: { x: number; y: number }[] = [];
-        if (section.bendPoints) {
-          section.bendPoints.forEach((bp: any) => {
-            bendPoints.push({ x: bp.x, y: bp.y });
-          });
-        }
-
-        if (startPoint && endPoint) {
-          edgeDataMap.set(elkEdge.id, { startPoint, bendPoints, endPoint });
-        }
+        edgeRoutingMap.set(elkEdge.id, {
+          startPoint: section.startPoint ? { x: section.startPoint.x, y: section.startPoint.y } : null,
+          endPoint: section.endPoint ? { x: section.endPoint.x, y: section.endPoint.y } : null,
+          bendPoints: section.bendPoints ? section.bendPoints.map((bp: any) => ({ x: bp.x, y: bp.y })) : [],
+          // ELK returns which port it assigned the edge to in outgoingShape/incomingShape
+          // if it was connected to the node initially.
+          sourcePort: section.outgoingShape,
+          targetPort: section.incomingShape,
+        });
       }
     });
   }
 
   const updatedEdges = edges.map(e => {
-    const routingData = edgeDataMap.get(e.id);
-    if (routingData) {
+    const route = edgeRoutingMap.get(e.id);
+    if (route) {
       return {
         ...e,
+        sourceHandle: route.sourcePort ? `${route.sourcePort}-source` : undefined,
+        targetHandle: route.targetPort ? `${route.targetPort}-target` : undefined,
         data: {
           ...e.data,
-          startPoint: routingData.startPoint,
-          bendPoints: routingData.bendPoints,
-          endPoint: routingData.endPoint,
+          startPoint: route.startPoint,
+          bendPoints: route.bendPoints,
+          endPoint: route.endPoint,
         },
       };
     }

@@ -19,6 +19,8 @@ export interface DfdEdge {
   id: string;
   source: string;
   target: string;
+  sourceHandle?: string;
+  targetHandle?: string;
   label?: string;
   animated?: boolean;
   style?: "solid" | "dashed" | "dotted";
@@ -50,6 +52,7 @@ interface DiagramState {
   showCodeInRightPanel: boolean;
   direction: "TB" | "LR";
   mermaidCode: string;
+  latestGeneratedNodeIds: string[];
 
   // Actions
   setNodes: (nodes: DfdNode[]) => void;
@@ -77,7 +80,7 @@ interface DiagramState {
   updateEdge: (id: string, data: Partial<DfdEdge>) => void;
   removeNode: (id: string) => void;
   removeEdge: (id: string) => void;
-  applyAIGeneratedDiagram: (nodes: DfdNode[], edges: DfdEdge[]) => void;
+  applyAIGeneratedDiagram: (nodes: DfdNode[], edges: DfdEdge[]) => Promise<void>;
   loadProject: (projectId: string) => Promise<void>;
   saveProject: (userId: string) => Promise<void>;
   applyLayoutAsync: () => Promise<void>;
@@ -106,6 +109,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   showCodeInRightPanel: false,
   direction: "LR",
   mermaidCode: "",
+  latestGeneratedNodeIds: [],
 
   setNodes: (nodes) => set({ nodes }),
   setEdges: (edges) => set({ edges }),
@@ -174,9 +178,71 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
     }));
   },
 
-  applyAIGeneratedDiagram: (nodes, edges) => {
-    set({ nodes, edges, layoutVersion: (get().layoutVersion + 1) % 1000 });
-    get().applyLayoutAsync();
+  applyAIGeneratedDiagram: async (newNodes, newEdges) => {
+    const { nodes: existingNodes, edges: existingEdges, dfdLevel, diagramType } = get();
+
+    set({ isLayouting: true });
+
+    try {
+      const measuredNewNodes = await measureNodes(newNodes);
+      
+      const { nodes: layoutedNewNodes, edges: layoutedNewEdges } = await applyElkLayout(
+        measuredNewNodes,
+        newEdges,
+        diagramType === "dfd" ? "LR" : "TB",
+        dfdLevel
+      );
+
+      let maxX = 0;
+      if (existingNodes.length > 0) {
+        existingNodes.forEach(node => {
+          const nodeRight = (node.position?.x || 0) + (node.width || 180);
+          if (nodeRight > maxX) {
+            maxX = nodeRight;
+          }
+        });
+      }
+
+      const offset = maxX > 0 ? maxX + 300 : 0;
+
+      const offsetNewNodes = layoutedNewNodes.map(node => ({
+        ...node,
+        position: {
+          x: (node.position?.x || 0) + offset,
+          y: node.position?.y || 0
+        }
+      }));
+
+      const offsetNewEdges = layoutedNewEdges.map(edge => {
+        if (!edge.data) return edge;
+        const newData = { ...edge.data };
+        if (newData.startPoint) {
+          newData.startPoint = { x: newData.startPoint.x + offset, y: newData.startPoint.y };
+        }
+        if (newData.endPoint) {
+          newData.endPoint = { x: newData.endPoint.x + offset, y: newData.endPoint.y };
+        }
+        if (newData.bendPoints) {
+          newData.bendPoints = newData.bendPoints.map((p: any) => ({ x: p.x + offset, y: p.y }));
+        }
+        return { ...edge, data: newData };
+      });
+
+      const latestGeneratedNodeIds = offsetNewNodes.map(n => n.id);
+
+      set({
+        nodes: [...existingNodes, ...offsetNewNodes],
+        edges: [...existingEdges, ...offsetNewEdges],
+        layoutVersion: (get().layoutVersion + 1) % 1000,
+        latestGeneratedNodeIds,
+        isLayouting: false
+      });
+
+      get().saveLayoutToSupabase();
+    } catch (err) {
+      console.error("AI Layout failed", err);
+      set({ isLayouting: false });
+    }
   },
 
   resetToBlank: (type) => {

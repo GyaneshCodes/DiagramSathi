@@ -11,8 +11,9 @@ import {
   Plus,
   Info,
 } from "lucide-react";
-import { generateDiagramFromDescription } from "../../utils/gemini";
-import { useEffect } from "react";
+import { generateDiagramFromDescription } from "../../utils/aiService";
+import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 import { useAuth } from "../../context/AuthContext";
 import { logAiGeneration } from "../../lib/projects";
 
@@ -54,17 +55,50 @@ export const LeftLayersPanel = () => {
   } = useDiagramStore();
 
   const { session } = useAuth();
+  const [loadingStep, setLoadingStep] = useState(0);
 
   const handleSmartSuggest = async () => {
     if (!projectDescription.trim()) return;
+    
     setIsGenerating(true);
+    setLoadingStep(1);
+    
+    const intervalId = setInterval(() => {
+      setLoadingStep((prev) => (prev < 4 ? prev + 1 : 1));
+    }, 800);
+
     try {
       const result = await generateDiagramFromDescription(
         projectDescription,
         preferredDiagramType,
         dfdLevel
       );
-      applyAIGeneratedDiagram(result.nodes, result.edges);
+      
+      const generatedNodes = result.nodes as any[];
+      
+      // Auto-heal edges: AI sometimes uses node labels instead of IDs for source/target
+      const generatedEdges = result.edges.map((e, i) => {
+        let sourceId = String(e.source || "");
+        let targetId = String(e.target || "");
+        
+        if (!generatedNodes.find(n => n.id === sourceId)) {
+          const match = generatedNodes.find(n => n.label?.toLowerCase() === sourceId.toLowerCase());
+          if (match) sourceId = match.id;
+        }
+        if (!generatedNodes.find(n => n.id === targetId)) {
+          const match = generatedNodes.find(n => n.label?.toLowerCase() === targetId.toLowerCase());
+          if (match) targetId = match.id;
+        }
+
+        return {
+          ...e,
+          source: sourceId,
+          target: targetId,
+          id: `ai_edge_${i}_${Math.random().toString(36).substr(2, 4)}`
+        };
+      }) as any;
+
+      await applyAIGeneratedDiagram(generatedNodes, generatedEdges);
       
       // Log the generation to Supabase
       if (session?.user?.id) {
@@ -72,7 +106,7 @@ export const LeftLayersPanel = () => {
           session.user.id,
           currentProjectId,
           projectDescription,
-          { nodes: result.nodes, edges: result.edges }
+          { nodes: generatedNodes, edges: generatedEdges }
         );
       }
 
@@ -82,10 +116,11 @@ export const LeftLayersPanel = () => {
         await saveProject(session.user.id);
       }
     } catch (error: unknown) {
-      alert(
-        error instanceof Error ? error.message : "Failed to generate diagram.",
-      );
+      const msg = error instanceof Error ? error.message : "Failed to generate diagram.";
+      toast.error(msg);
     } finally {
+      clearInterval(intervalId);
+      setLoadingStep(0);
       setIsGenerating(false);
     }
   };
@@ -113,6 +148,16 @@ export const LeftLayersPanel = () => {
       case "parallelogram":
       default:
         return <Square size={14} />;
+    }
+  };
+
+  const getLoadingText = () => {
+    switch (loadingStep) {
+      case 1: return "🧠 Analyzing architecture...";
+      case 2: return "📐 Defining nodes...";
+      case 3: return "🔗 Mapping flow connections...";
+      case 4: return "✨ Optimizing layout...";
+      default: return "Generating...";
     }
   };
 
@@ -187,9 +232,11 @@ export const LeftLayersPanel = () => {
         <button
           onClick={handleSmartSuggest}
           disabled={isGenerating || !projectDescription.trim()}
-          className="w-full text-xs bg-primary hover:bg-primary/80 disabled:bg-primary/20 disabled:text-primary/40 text-white py-2 rounded-md transition-colors font-medium flex items-center justify-center gap-2"
+          className="w-full text-xs bg-primary hover:bg-primary/80 disabled:bg-primary/20 disabled:text-primary/80 text-white py-2 rounded-md transition-colors font-medium flex items-center justify-center gap-2 overflow-hidden"
         >
-          {isGenerating ? "Generating..." : "✨ Generate Diagram"}
+          <span className={`transition-all duration-300 ${isGenerating ? "animate-pulse" : ""}`}>
+            {isGenerating ? getLoadingText() : "✨ Generate Diagram"}
+          </span>
         </button>
       </div>
 

@@ -28,7 +28,7 @@ export const generateDiagramFromDescription = async (
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      console.log(`[Gemini] Attempt ${attempt + 1}/${maxRetries}...`);
+      console.log(`[Groq] Attempt ${attempt + 1}/${maxRetries}...`);
 
       const { data, error } = await Promise.race([
         supabase.functions.invoke('generate-diagram', {
@@ -38,7 +38,7 @@ export const generateDiagramFromDescription = async (
       ]);
 
       if (error) {
-         console.error("[Gemini] Edge function error (raw):", error);
+         console.error("[Groq] Edge function error (raw):", error);
          let errorMessage = error.message || "Failed to call diagram generation API";
          let isRetryable = false;
 
@@ -95,10 +95,10 @@ export const generateDiagramFromDescription = async (
         throw new Error("AI response missing nodes or edges arrays. Please try a different query.");
       }
 
-      console.log(`[Gemini] Success! Got ${parsed.nodes.length} nodes and ${parsed.edges.length} edges.`);
+      console.log(`[Groq] Success! Got ${parsed.nodes.length} nodes and ${parsed.edges.length} edges.`);
       return parsed;
     } catch (error: any) {
-      console.warn(`[Gemini] Attempt ${attempt + 1} failed:`, error.message);
+      console.warn(`[Groq] Attempt ${attempt + 1} failed:`, error.message);
       lastError = error;
 
       const isRetryable = error.isRetryable || 
@@ -110,7 +110,7 @@ export const generateDiagramFromDescription = async (
       
       if (isRetryable && attempt < maxRetries - 1) {
         const delay = (attempt + 1) * 2000;
-        console.log(`[Gemini] Retrying in ${delay}ms...`);
+        console.log(`[Groq] Retrying in ${delay}ms...`);
         await new Promise(r => setTimeout(r, delay));
         continue;
       }
@@ -118,7 +118,7 @@ export const generateDiagramFromDescription = async (
       if (error instanceof SyntaxError) {
         throw new Error("AI returned invalid JSON. Please try again.");
       }
-      throw new Error(`Failed to generate diagram: ${error.message || "Unknown error"}`);
+      throw new Error(error.message || "Unknown error");
     }
   }
 

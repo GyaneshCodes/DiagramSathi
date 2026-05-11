@@ -22,6 +22,9 @@ export const NODE_DIMENSIONS: Record<string, { width: number; height: number }> 
   parallelogram: { width: 180, height: 60 },
   hexagon:       { width: 160, height: 70 },
   cylinder:      { width: 160, height: 80 },
+  process:       { width: 100, height: 100 },
+  entity:        { width: 160, height: 60 },
+  datastore:     { width: 160, height: 60 },
 };
 
 /** Returns dimensions for a node type, preferring explicit overrides. */

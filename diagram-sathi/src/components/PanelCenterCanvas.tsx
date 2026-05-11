@@ -21,6 +21,7 @@ import {
   MarkerType,
   MiniMap,
   SelectionMode,
+  ConnectionMode,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
@@ -29,7 +30,6 @@ import {
   type DfdEdge,
 } from "../store/useDiagramStore";
 import { RefreshCw } from "lucide-react";
-import { getLayoutedElements } from "../utils/layoutGraph";
 import { getNodeDimensions } from "../utils/layoutConfiguration";
 import { TopToolbar } from "./ui/TopToolbar";
 import { nodeTypes } from "./diagram/Nodes";
@@ -210,6 +210,7 @@ const PaneCenterCanvasInner = () => {
   const astEdges = useDiagramStore((s) => s.edges);
   const diagramType = useDiagramStore((s) => s.diagramType);
   const layoutVersion = useDiagramStore((s) => s.layoutVersion);
+  const latestGeneratedNodeIds = useDiagramStore((s) => s.latestGeneratedNodeIds);
   const storeAddEdge = useDiagramStore((s) => s.addEdge);
 
   const activeTool = useDiagramStore((s) => s.activeTool);
@@ -306,22 +307,22 @@ const PaneCenterCanvasInner = () => {
         };
       });
 
-      // Only run Dagre if layout is clean
+      // Apply fitView if layoutVersion changed
       if (layoutAppliedRef.current === false) {
-        if (diagramType !== "dfd") {
-          // Flowchart: apply Dagre layout in canvas
-          const { nodes: layoutedNodes, edges: layoutedEdges } =
-            getLayoutedElements(rfNodes, rfEdges, {
-              direction: "TB",
-            });
-          rfNodes = layoutedNodes;
-          rfEdges = layoutedEdges;
-        }
-        // DFD: positions come from ELK via the store, no canvas-level layout needed
         layoutAppliedRef.current = true;
 
         requestAnimationFrame(() => {
-          fitView({ duration: 400, padding: 0.15 });
+          if (latestGeneratedNodeIds && latestGeneratedNodeIds.length > 0) {
+            fitView({ 
+              duration: 400, 
+              padding: 0.15,
+              nodes: latestGeneratedNodeIds.map(id => ({ id }))
+            });
+            // Clear to prevent repetitive panning
+            useDiagramStore.setState({ latestGeneratedNodeIds: [] });
+          } else {
+            fitView({ duration: 400, padding: 0.15 });
+          }
         });
       }
 
@@ -336,6 +337,7 @@ const PaneCenterCanvasInner = () => {
     astEdges,
     diagramType,
     layoutVersion,
+    latestGeneratedNodeIds,
     fitView,
     setNodes,
     setEdges,
@@ -436,6 +438,7 @@ const PaneCenterCanvasInner = () => {
           selectionOnDrag={activeTool === "cursor"}
           panActivationKeyCode="Space"
           selectionMode={SelectionMode.Partial}
+          connectionMode={ConnectionMode.Loose}
           fitView
           minZoom={0.1}
           maxZoom={4}

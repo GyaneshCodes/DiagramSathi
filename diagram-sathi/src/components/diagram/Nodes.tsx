@@ -256,6 +256,10 @@ export const GroupNode = () => {
   );
 };
 
+import { ProcessNode } from "./ProcessNode";
+import { EntityNode } from "./EntityNode";
+import { DataStoreNode } from "./DataStoreNode";
+
 export const nodeTypes = {
   rectangle: RectangleNode,
   square: SquareNode,
@@ -265,4 +269,7 @@ export const nodeTypes = {
   hexagon: HexagonNode,
   cylinder: CylinderNode,
   group: GroupNode,
+  process: ProcessNode,
+  entity: EntityNode,
+  datastore: DataStoreNode,
 };
