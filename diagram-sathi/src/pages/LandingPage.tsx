@@ -117,11 +117,14 @@ export function LandingPage() {
 
   return (
     <LazyMotion features={domAnimation}>
-      <div className="relative w-screen min-h-screen overflow-x-hidden bg-bg text-neutral font-sans selection:bg-primary/30">
+      <div 
+        data-theme="dark"
+        className="relative w-screen min-h-screen overflow-x-hidden bg-bg text-neutral font-sans selection:bg-primary/30"
+      >
         {/* ── Fixed Navigation ── */}
         <nav
           data-landing-nav
-          className="fixed top-0 left-0 w-full px-6 py-5 md:px-10 md:py-6 flex justify-between items-center z-50 bg-[#12101aed] border-b border-white\/[0.04]"
+          className="fixed top-0 left-0 w-full px-6 py-5 md:px-10 md:py-6 flex justify-between items-center z-50 bg-panel/90 backdrop-blur-md border-b border-border/50"
         >
           <div className="flex items-center gap-2.5 font-bold text-lg tracking-tighter">
             <img
@@ -146,7 +149,7 @@ export function LandingPage() {
             </a>
             <Link
               to="/signin"
-              className="group flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/10 border border-white/10 text-neutral font-semibold text-sm hover:bg-white/20 hover:border-white/20 transition-all duration-300 ease-out"
+              className="group flex items-center gap-2 px-5 py-2.5 rounded-full bg-neutral/10 border border-border/50 text-neutral font-semibold text-sm hover:bg-neutral/20 hover:border-border transition-all duration-300 ease-out"
             >
               ENTER APP
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
@@ -191,7 +194,7 @@ export function LandingPage() {
           )}
 
           {/* Bottom Gradient Vignette */}
-          <div className="absolute inset-x-0 bottom-0 h-[55%] z-15 pointer-events-none bg-gradient-to-t\ from-bg via-bg/70 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 h-[55%] z-15 pointer-events-none bg-gradient-to-t from-bg via-bg/70 to-transparent" />
 
           {/* Hero Content — Bottom-left editorial layout */}
           <div className="absolute bottom-0 left-0 w-full z-30 pointer-events-none px-6 pb-10 md:px-12 md:pb-14">
@@ -237,7 +240,7 @@ export function LandingPage() {
           className="relative py-24 md:py-32 px-6 md:px-12 lg:px-20 bg-panel"
         >
           {/* Top divider glow */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-px bg-gradient-to-r\ from-transparent via-primary/30 to-transparent" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
 
           <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-20 items-center">
             {/* Left — Story */}
@@ -315,7 +318,7 @@ export function LandingPage() {
           className="relative py-24 md:py-32 px-6 md:px-12 bg-bg"
         >
           {/* Top divider */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-px bg-gradient-to-r\ from-transparent via-white/10 to-transparent" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-px bg-gradient-to-r from-transparent via-border/50 to-transparent" />
 
           <div className="max-w-xl mx-auto">
             <m.div
@@ -360,7 +363,7 @@ export function LandingPage() {
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, name: e.target.value }))
                   }
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-neutral placeholder-neutral/25 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all duration-300"
+                  className="w-full bg-input border border-input-border rounded-xl px-4 py-3 text-sm text-neutral placeholder-neutral/25 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all duration-300"
                   placeholder="Your name"
                 />
               </div>
@@ -379,7 +382,7 @@ export function LandingPage() {
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, email: e.target.value }))
                   }
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-neutral placeholder-neutral/25 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all duration-300"
+                  className="w-full bg-input border border-input-border rounded-xl px-4 py-3 text-sm text-neutral placeholder-neutral/25 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all duration-300"
                   placeholder="you@example.com"
                 />
               </div>
@@ -401,7 +404,7 @@ export function LandingPage() {
                       message: e.target.value,
                     }))
                   }
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-neutral placeholder-neutral/25 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all duration-300 resize-none"
+                  className="w-full bg-input border border-input-border rounded-xl px-4 py-3 text-sm text-neutral placeholder-neutral/25 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all duration-300 resize-none"
                   placeholder="Your message..."
                 />
               </div>
@@ -430,7 +433,7 @@ export function LandingPage() {
                 href="#"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-neutral/40 hover:text-neutral hover:border-primary/30 hover:bg-primary/10 transition-all duration-300"
+                className="w-10 h-10 rounded-full bg-input border border-input-border flex items-center justify-center text-neutral/40 hover:text-neutral hover:border-primary/30 hover:bg-primary/10 transition-all duration-300"
               >
                 <Github className="w-[18px] h-[18px]" />
               </a>
@@ -438,7 +441,7 @@ export function LandingPage() {
                 href="#"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-neutral/40 hover:text-neutral hover:border-primary/30 hover:bg-primary/10 transition-all duration-300"
+                className="w-10 h-10 rounded-full bg-input border border-input-border flex items-center justify-center text-neutral/40 hover:text-neutral hover:border-primary/30 hover:bg-primary/10 transition-all duration-300"
               >
                 <Linkedin className="w-[18px] h-[18px]" />
               </a>
@@ -449,7 +452,7 @@ export function LandingPage() {
         {/* ══════════════════════════════════════════════════════════ */}
         {/* ── FOOTER ──                                              */}
         {/* ══════════════════════════════════════════════════════════ */}
-        <footer className="border-t border-white/5 bg-bg px-6 py-8">
+        <footer className="border-t border-border/50 bg-bg px-6 py-8">
           <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-xs text-neutral/30 font-mono">
               © 2026 DiagramSathi. Built with{" "}

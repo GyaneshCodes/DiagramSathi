@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, LayoutGrid, List, ArrowRight, FolderOpen, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -53,7 +53,7 @@ export const ProjectViewLayout = ({
   const menuLocation = getMenuLocation(title);
   const hasData = ["Drafts", "All Diagrams", "All Projects", "Projects", "Trash"].includes(title);
 
-  const fetchProjects = () => {
+  const fetchProjects = useCallback(() => {
     setLoading(true);
     setFetchError(null);
 
@@ -79,7 +79,7 @@ export const ProjectViewLayout = ({
         setLoading(false);
         setFetchError("Failed to load diagrams. Please try again.");
       });
-  };
+  }, [title]);
 
   useEffect(() => {
     if (!hasData) {
@@ -87,7 +87,7 @@ export const ProjectViewLayout = ({
       return;
     }
     fetchProjects();
-  }, [title, hasData]);
+  }, [hasData, fetchProjects]);
 
   // Focus rename input when it opens
   useEffect(() => {
@@ -213,7 +213,7 @@ export const ProjectViewLayout = ({
             if (e.key === "Escape") setRenamingId(null);
           }}
           onClick={(e) => e.stopPropagation()}
-          className="text-sm font-semibold text-neutral bg-white/10 border border-primary/50 rounded px-1.5 py-0.5 outline-none w-full max-w-[180px]"
+          className="text-sm font-semibold text-neutral bg-input border border-primary/50 rounded px-1.5 py-0.5 outline-none w-full max-w-[180px]"
         />
       );
     }
@@ -278,16 +278,16 @@ export const ProjectViewLayout = ({
                     placeholder="Search..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9 pr-4 py-1.5 bg-white/5 border border-white/10 rounded-full text-sm outline-none focus:border-primary/50 focus:w-48 w-32 transition-all duration-300 placeholder-neutral/30"
+                    className="pl-9 pr-4 py-1.5 bg-input border border-input-border rounded-full text-sm outline-none focus:border-primary/50 focus:w-48 w-32 transition-all duration-300 placeholder-neutral/30"
                   />
                 </div>
 
-                <div className="flex items-center bg-white/5 rounded-lg border border-white/10 p-0.5">
+                <div className="flex items-center bg-input rounded-lg border border-input-border p-0.5">
                   <button
                     onClick={() => setViewMode("grid")}
                     className={`p-1.5 rounded-md transition-colors duration-200 cursor-pointer flex items-center justify-center ${
                       viewMode === "grid"
-                        ? "bg-white/10 text-neutral shadow-sm"
+                        ? "bg-neutral/10 text-neutral shadow-sm"
                         : "text-neutral/40 hover:text-neutral/70"
                     }`}
                     title="Grid View"
@@ -298,7 +298,7 @@ export const ProjectViewLayout = ({
                     onClick={() => setViewMode("list")}
                     className={`p-1.5 rounded-md transition-colors duration-200 cursor-pointer flex items-center justify-center ${
                       viewMode === "list"
-                        ? "bg-white/10 text-neutral shadow-sm"
+                        ? "bg-neutral/10 text-neutral shadow-sm"
                         : "text-neutral/40 hover:text-neutral/70"
                     }`}
                     title="List View"
@@ -310,15 +310,15 @@ export const ProjectViewLayout = ({
                 <select
                   value={sortOption}
                   onChange={(e) => setSortOption(e.target.value)}
-                  className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-neutral/80 outline-none cursor-pointer focus:border-primary/50 appearance-none"
+                  className="bg-input border border-input-border rounded-lg px-3 py-1.5 text-sm text-neutral/80 outline-none cursor-pointer focus:border-primary/50 appearance-none"
                 >
-                  <option className="bg-[#12101a] text-neutral" value="date_desc">
+                  <option className="bg-panel text-neutral" value="date_desc">
                     Last Modified
                   </option>
-                  <option className="bg-[#12101a] text-neutral" value="date_asc">
+                  <option className="bg-panel text-neutral" value="date_asc">
                     Oldest First
                   </option>
-                  <option className="bg-[#12101a] text-neutral" value="name_asc">
+                  <option className="bg-panel text-neutral" value="name_asc">
                     Alphabetical
                   </option>
                 </select>
@@ -328,7 +328,7 @@ export const ProjectViewLayout = ({
 
           {/* LIST/GRID View Wrapper */}
           {loading ? (
-            <div className="h-64 border-2 border-dashed border-white/5 rounded-2xl flex flex-col items-center justify-center text-center">
+            <div className="h-64 border-2 border-dashed border-border/50 rounded-2xl flex flex-col items-center justify-center text-center">
               <Loader2 className="w-8 h-8 text-primary animate-spin mb-4" />
               <p className="text-sm text-neutral/60">Loading diagrams...</p>
             </div>
@@ -337,7 +337,7 @@ export const ProjectViewLayout = ({
               <p className="text-sm text-red-400">{fetchError}</p>
               <button
                 onClick={fetchProjects}
-                className="px-5 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-neutral/80 hover:bg-white/10 hover:text-neutral transition-all duration-200 cursor-pointer"
+                className="px-5 py-2 rounded-lg bg-input border border-input-border text-sm text-neutral/80 hover:bg-neutral/10 hover:text-neutral transition-all duration-200 cursor-pointer"
               >
                 Retry
               </button>
@@ -354,7 +354,7 @@ export const ProjectViewLayout = ({
                     className="group relative cursor-pointer"
                     onClick={() => navigate(`/editor/${item.id}`)}
                   >
-                    <div className="glass-card aspect-video mb-3 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center overflow-hidden group-hover:border-primary/30 transition-colors duration-300">
+                    <div className="glass-card aspect-video mb-3 rounded-xl flex items-center justify-center overflow-hidden transition-colors duration-300">
                       <div className="w-full h-full opacity-20 group-hover:opacity-40 transition-opacity duration-300 flex items-center justify-center">
                         {item.type === "dfd" ? (
                           <div className="flex gap-4 items-center">
@@ -394,11 +394,11 @@ export const ProjectViewLayout = ({
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.05 }}
-                    className="group flex items-center justify-between p-4 glass-card rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer"
+                    className="group flex items-center justify-between p-4 glass-card rounded-xl border border-border bg-panel hover:bg-neutral/5 transition-all duration-300 cursor-pointer"
                     onClick={() => navigate(`/editor/${item.id}`)}
                   >
                     <div className="flex items-center gap-4 flex-1 min-w-0">
-                      <div className="w-10 h-10 rounded-lg bg-[#12101a] border border-white/10 flex items-center justify-center shrink-0">
+                      <div className="w-10 h-10 rounded-lg bg-neutral/10 border border-border flex items-center justify-center shrink-0">
                         {item.type === "dfd" ? (
                           <ArrowRight className="w-4 h-4 text-primary" />
                         ) : (
@@ -422,7 +422,7 @@ export const ProjectViewLayout = ({
             )
           ) : (
             <div className="h-64 border-2 border-dashed border-white/5 rounded-2xl flex flex-col items-center justify-center text-center">
-              <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mb-4">
+              <div className="w-12 h-12 rounded-full bg-neutral/5 flex items-center justify-center mb-4">
                 <FolderOpen className="w-5 h-5 text-neutral/30" />
               </div>
               <h3 className="text-sm font-medium text-neutral/60 mb-1">

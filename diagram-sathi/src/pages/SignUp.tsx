@@ -56,15 +56,15 @@ const SignUpForm = () => {
   if (success) {
     return (
       <div className="w-full max-w-[320px] text-center">
-        <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-[#803bff]/20 flex items-center justify-center">
-          <Mail className="w-7 h-7 text-[#803bff]" />
+        <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-primary/20 flex items-center justify-center">
+          <Mail className="w-7 h-7 text-primary" />
         </div>
-        <h1 className="text-2xl font-black tracking-tight mb-2 text-[#f3f0ff]">
+        <h1 className="text-2xl font-black tracking-tight mb-2 text-neutral">
           Check Your Email
         </h1>
-        <p className="text-sm text-white/40 leading-relaxed">
+        <p className="text-sm text-neutral/40 leading-relaxed">
           We sent a confirmation link to{" "}
-          <span className="text-[#803bff] font-medium">{email}</span>. Click the
+          <span className="text-primary font-medium">{email}</span>. Click the
           link to activate your account.
         </p>
       </div>
@@ -73,10 +73,10 @@ const SignUpForm = () => {
 
   return (
     <form className="w-full max-w-[320px]" onSubmit={handleSignUp}>
-      <h1 className="text-3xl font-black tracking-tight mb-1 text-[#f3f0ff]">
+      <h1 className="text-3xl font-black tracking-tight mb-1 text-neutral">
         Create Account
       </h1>
-      <p className="text-xs text-white/40 mt-1 mb-6">
+      <p className="text-xs text-neutral/40 mt-1 mb-6">
         Start building diagrams in seconds
       </p>
 
@@ -118,18 +118,18 @@ const SignUpForm = () => {
         </Button>
       </div>
 
-      <p className="text-[11px] text-white/25 text-center mt-4 leading-relaxed">
+      <p className="text-[11px] text-neutral/25 text-center mt-4 leading-relaxed">
         By signing up, you agree to our{" "}
         <a
           href="#"
-          className="text-[#803bff]/70 hover:text-[#803bff] transition-colors"
+          className="text-primary/70 hover:text-primary transition-colors"
         >
           Terms
         </a>{" "}
         &{" "}
         <a
           href="#"
-          className="text-[#803bff]/70 hover:text-[#803bff] transition-colors"
+          className="text-primary/70 hover:text-primary transition-colors"
         >
           Privacy Policy
         </a>

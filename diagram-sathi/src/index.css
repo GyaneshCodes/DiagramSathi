@@ -2,15 +2,57 @@
 
 :root {
   --primary: #803bff;
-  --neutral: #f3f0ff;
   --success: #10b981;
   --warning: #f59e0b;
   --error: #ef4444;
   --info: #bda6ff;
-  --bg: #12101a;
+}
 
-  --panel-bg: #1a1725; /* Slightly lighter than --bg to serve as panel backgrounds */
-  --border-color: #2b2640; /* Distinguishable border color */
+/* Default (Dark) Theme */
+[data-theme="dark"] {
+  --bg: #12101a;
+  --neutral: #f3f0ff;
+  --panel-bg: #1a1725;
+  --border-color: #2b2640;
+
+  /* Card/Glass Specific */
+  --glass-bg: rgba(26, 23, 37, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-hover-bg: rgba(26, 23, 37, 0.95);
+  --glass-hover-border: rgba(128, 59, 255, 0.25);
+
+  /* Canvas Specific */
+  --canvas-dot: #334155;
+  --edge-color: #94a3b8;
+  --edge-label-bg: #1e293b;
+  --edge-label-text: #e2e8f0;
+
+  /* Input Specific */
+  --input: rgba(255, 255, 255, 0.05);
+  --input-border: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="light"] {
+  --bg: #ffffff;
+  --neutral: #0f172a;
+  --panel-bg: #f8fafc;
+  --border-color: #e2e8f0;
+
+  /* Card/Glass Specific */
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(15, 23, 42, 0.08);
+  --glass-hover-bg: #ffffff;
+  --glass-hover-border: rgba(128, 59, 255, 0.35);
+
+  /* Canvas Specific */
+  --canvas-dot: #cbd5e1;
+  --edge-color: #64748b;
+  --edge-label-bg: #f1f5f9;
+  --edge-label-text: #334155;
+
+  /* Input Specific */
+  --input: #f8fafc;
+  --input-border: #e2e8f0;
 }
 
 @theme {
@@ -21,9 +63,12 @@
   --color-error: var(--error);
   --color-info: var(--info);
   --color-bg: var(--bg);
-
   --color-panel: var(--panel-bg);
   --color-border: var(--border-color);
+
+  --color-edge: var(--edge-color);
+  --color-input: var(--input);
+  --color-input-border: var(--input-border);
 
   --font-sans:
     "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
@@ -88,19 +133,22 @@ nav[data-landing-nav] {
 }
 
 .glass-card {
-  background: rgba(26, 23, 37, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-blur: 12px;
   border-radius: 1rem;
   transition:
     border-color 0.3s ease,
-    background 0.3s ease;
+    background 0.3s ease,
+    box-shadow 0.3s ease;
   will-change: transform;
   contain: content;
 }
 
 .glass-card:hover {
-  border-color: rgba(128, 59, 255, 0.25);
-  background: rgba(26, 23, 37, 0.95);
+  border-color: var(--glass-hover-border);
+  background: var(--glass-hover-bg);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.05);
 }
 
 /* ── Spline 3D overrides ── */

@@ -24,7 +24,7 @@ export const ProcessNode = ({ data, id, selected }: NodeProps<Node>) => {
         }}
       />
       
-      <div className="px-4 py-4 text-sm text-black text-center break-words max-w-[150px]">
+      <div className="px-4 py-4 text-sm text-black text-center whitespace-normal max-w-[150px]">
         {String(data.label)}
       </div>
 

@@ -178,8 +178,8 @@ const FloatingSmoothStepEdge = ({
                 borderRadius: 4,
                 fontSize: 12,
                 fontWeight: 500,
-                background: "#1e293b",
-                color: "#e2e8f0",
+                background: "var(--edge-label-bg)",
+                color: "var(--edge-label-text)",
                 pointerEvents: "all",
               }}
               className="nodrag nopan"
@@ -210,8 +210,12 @@ const PaneCenterCanvasInner = () => {
   const astEdges = useDiagramStore((s) => s.edges);
   const diagramType = useDiagramStore((s) => s.diagramType);
   const layoutVersion = useDiagramStore((s) => s.layoutVersion);
-  const latestGeneratedNodeIds = useDiagramStore((s) => s.latestGeneratedNodeIds);
+  const latestGeneratedNodeIds = useDiagramStore(
+    (s) => s.latestGeneratedNodeIds,
+  );
   const storeAddEdge = useDiagramStore((s) => s.addEdge);
+  const removeNode = useDiagramStore((s) => s.removeNode);
+  const removeEdge = useDiagramStore((s) => s.removeEdge);
 
   const activeTool = useDiagramStore((s) => s.activeTool);
   const selectedNodeId = useDiagramStore((s) => s.selectedNodeId);
@@ -228,6 +232,12 @@ const PaneCenterCanvasInner = () => {
 
   const flowWrapperRef = useRef<HTMLDivElement>(null);
   const { fitView } = useReactFlow();
+  const reactFlowInstance = useReactFlow();
+  const setReactFlowInstance = useDiagramStore((s) => s.setReactFlowInstance);
+
+  useEffect(() => {
+    setReactFlowInstance(reactFlowInstance);
+  }, [reactFlowInstance, setReactFlowInstance]);
 
   const layoutAppliedRef = useRef(false);
   const prevLayoutVersionRef = useRef(layoutVersion);
@@ -292,10 +302,10 @@ const PaneCenterCanvasInner = () => {
           },
           markerEnd: {
             type: MarkerType.ArrowClosed,
-            color: "#94a3b8",
+            color: "var(--edge-color)",
           },
           style: {
-            stroke: "#94a3b8",
+            stroke: "var(--edge-color)",
             strokeWidth: 2,
             strokeDasharray:
               e.style === "dashed"
@@ -313,10 +323,10 @@ const PaneCenterCanvasInner = () => {
 
         requestAnimationFrame(() => {
           if (latestGeneratedNodeIds && latestGeneratedNodeIds.length > 0) {
-            fitView({ 
-              duration: 400, 
+            fitView({
+              duration: 400,
               padding: 0.15,
-              nodes: latestGeneratedNodeIds.map(id => ({ id }))
+              nodes: latestGeneratedNodeIds.map((id) => ({ id })),
             });
             // Clear to prevent repetitive panning
             useDiagramStore.setState({ latestGeneratedNodeIds: [] });
@@ -388,6 +398,20 @@ const PaneCenterCanvasInner = () => {
     setSelectedEdgeId(null);
   }, [setSelectedNodeId, setSelectedEdgeId]);
 
+  const onNodesDelete = useCallback(
+    (deletedNodes: Node[]) => {
+      deletedNodes.forEach((node) => removeNode(node.id));
+    },
+    [removeNode],
+  );
+
+  const onEdgesDelete = useCallback(
+    (deletedEdges: Edge[]) => {
+      deletedEdges.forEach((edge) => removeEdge(edge.id));
+    },
+    [removeEdge],
+  );
+
   return (
     <div className="flex-1 bg-bg relative h-1/3 md:h-full flex flex-col min-h-[300px] md:min-h-0 border-x border-border/80">
       <div className="absolute top-4 left-4 z-10 bg-panel/80 backdrop-blur-md shadow-lg rounded-md px-3 py-1.5 border border-border/50 flex items-center gap-2">
@@ -400,8 +424,8 @@ const PaneCenterCanvasInner = () => {
       <TopToolbar />
 
       {error ? (
-        <div className="absolute inset-0 z-20 flex items-center justify-center p-8 bg-slate-950/80 backdrop-blur-sm">
-          <div className="bg-red-950/80 text-red-400 p-4 rounded-lg shadow-xl max-w-md border border-red-900/50">
+        <div className="absolute inset-0 z-20 flex items-center justify-center p-8 bg-bg/80 backdrop-blur-sm">
+          <div className="bg-error/20 text-error p-4 rounded-lg shadow-xl max-w-md border border-error/50">
             <h3 className="font-bold flex items-center gap-2 mb-2">
               <RefreshCw size={16} className="animate-spin" />
               Render Error
@@ -414,7 +438,7 @@ const PaneCenterCanvasInner = () => {
       ) : null}
 
       {isLayouting && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/40 backdrop-blur-[2px] pointer-events-none">
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-bg/40 backdrop-blur-[2px] pointer-events-none">
           <div className="bg-panel/90 text-neutral px-4 py-3 rounded-lg shadow-xl border border-border/50 flex items-center gap-3">
             <RefreshCw size={16} className="animate-spin text-indigo-400" />
             <span className="text-sm font-medium">Computing layout…</span>
@@ -431,7 +455,10 @@ const PaneCenterCanvasInner = () => {
           onConnect={onConnect}
           onNodeClick={onNodeClick}
           onEdgeClick={onEdgeClick}
+          onNodesDelete={onNodesDelete}
+          onEdgesDelete={onEdgesDelete}
           onPaneClick={onPaneClick}
+          deleteKeyCode={["Delete", "Backspace"]}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           panOnDrag={activeTool === "pan"}
@@ -451,7 +478,7 @@ const PaneCenterCanvasInner = () => {
             },
           }}
         >
-          {!isExporting && <Background color="#334155" gap={16} />}
+          {!isExporting && <Background color="var(--canvas-dot)" gap={16} />}
           {!isExporting && (
             <MiniMap
               className="bg-panel! border-border/80! rounded-md shadow-lg"

@@ -1,46 +1,53 @@
-# 📊 DiagramSathi - AI-Powered Diagramming Platform
+# 📊 DiagramSathi
 
-DiagramSathi is a modern, high-fidelity diagramming tool designed for engineers, students (BCA/CS), and system architects. It combines the power of **Google Gemini AI** with **Mermaid.js** and **React Flow** to offer a seamless, bidirectional diagramming experience.
+### AI-Powered High-Fidelity Diagramming Platform
 
-## ✨ Features
+**DiagramSathi** is a modern, intelligence-first diagramming tool built for developers, students, and architects. It transforms natural language descriptions into professional, structured diagrams using **Groq API**, **React Flow**, and the **ELK Layout Engine**.
 
-- **🤖 AI-Powered Generation**: Describe your system structure in natural language, and let Gemini AI generate the diagram instanty.
-- **🎨 Modern IDE Aesthetics**: A sleek Dark Mode interface with Glassmorphism panels and Indigo-Electric accenting.
-- **📐 Bidirectional Syncing**:
-  - Edit properties in the **Form View**.
-  - Modify logic in the **Mermaid Code Editor**.
-  - Drag and Resize nodes directly on the **Visual Canvas**.
-- **🖼️ 7+ Geometric Shapes**: Support for Rectangles, Squares, Circles, Diamonds, Parallelograms, Hexagons, and Cylinders (e.g., for Datastores).
-- **📏 Manual Node Resizing**: Integrated `NodeResizer` allows fine-grained control over node dimensions.
-- **🎯 Aspect-Ratio Locking**: Circles and Squares maintain their geometric integrity even when resized or filled with long text.
-- **📥 High-Quality Export**: Export your diagrams as PNGs with support for both **Transparent** and **Solid Dark** backgrounds.
-- **💾 Metadata Persistence**: Custom positions and sizes are persisted directly within the Mermaid code comments (using `@nodeType`, `@nodeSize`), ensuring your layout is preserved.
+---
+
+## ✨ Key Features
+
+- **🤖 AI-First Generation**: Describe complex systems (e.g., "A Level 1 DFD for an E-commerce inventory system") and get an instant, auto-layouted diagram.
+- **📐 High-Fidelity Layouts**: Integrated with **ELKJS** and **Dagre** for professional-grade polyline edge routing and automatic node positioning.
+- **🏗️ Specialized DFD Support**: Native support for Data Flow Diagrams (Processes, Data Stores, Entities) with specialized node types and hierarchical levels (0-N).
+- **💾 Full Persistence**: Save, manage, and version your projects via **Supabase**. Supports drafts, active projects, and a dedicated trash system.
+- **🎮 3D Experience**: A stunning, interactive 3D hero section powered by **Spline** for a premium first impression.
+- **🎨 Modern IDE Aesthetics**: Built with **Tailwind CSS v4**, featuring a sleek dark mode, glassmorphism panels, and high-performance animations via **Framer Motion**.
+- **📥 Professional Export**: Export your diagrams as high-resolution PNGs with support for transparent or solid backgrounds.
+- **🔄 Sequential Generation**: Add to existing diagrams seamlessly. AI-generated content appends to the right of your current canvas without overwriting your work.
+
+---
 
 ## 🛠️ Tech Stack
 
-- **Frontend**: [React 19](https://react.dev/), [Vite](https://vitejs.dev/), [TypeScript](https://www.typescriptlang.org/)
+- **Core**: [React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/)
+- **Build Tool**: [Vite 8 (Beta)](https://vitejs.dev/)
 - **Styling**: [Tailwind CSS v4](https://tailwindcss.com/)
-- **Diagramming Engine**: [@xyflow/react (React Flow)](https://reactflow.dev/)
-- **AI Integration**: [Google Gemini Pro API (@google/genai)](https://ai.google.dev/)
-- **Parsing & Syntax**: [Mermaid.js](https://mermaid-js.github.io/mermaid/#/)
-- **Layout Engine**: [Dagre](https://github.com/dagrejs/dagre)
-- **State Management**: [Zustand](https://github.com/pmndrs/zustand)
-- **Icons**: [Lucide React](https://lucide.dev/)
+- **State Management**: [Zustand](https://zustand-demo.pmnd.rs/)
+- **Diagramming**: [@xyflow/react (React Flow)](https://reactflow.dev/)
+- **Layout Engines**: [ELKJS](https://github.com/kieler/elkjs) & [Dagre](https://github.com/dagrejs/dagre)
+- **Backend/Auth**: [Supabase](https://supabase.com/)
+- **AI Integration**: [Groq API](https://console.groq.com/docs/overview)
+- **3D Graphics**: [@splinetool/react-spline](https://spline.design/)
+
+---
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 
-- Node.js (v18 or higher)
-- A Google Gemini API Key
+- **Node.js**: v20 or higher (recommended for React 19 compatibility)
+- **Supabase**: A Supabase project for backend functionality.
+- **Groq API Key**: [Groq API](https://console.groq.com/docs/overview)
 
 ### Installation
 
-1. **Clone the repository**:
+1. **Clone the repo**:
 
    ```bash
-   git clone https://github.com/your-username/diagram-sathi.git
-   cd diagram-sathi
+   git clone https://github.com/your-username/DiagramSathi.git
+   cd DiagramSathi/diagram-sathi
    ```
 
 2. **Install dependencies**:
@@ -49,29 +56,50 @@ DiagramSathi is a modern, high-fidelity diagramming tool designed for engineers,
    npm install
    ```
 
-3. **Configure Environment Variables**:
-   Create a `.env.local` file in the root directory and add your Gemini API key:
+3. **Environment Variables**:
+   Create a `.env.local` file in the `diagram-sathi/` directory:
 
    ```env
-   VITE_GEMINI_API_KEY=your_api_key_here
+   VITE_SUPABASE_URL=your_supabase_url
+   VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
    ```
 
-4. **Run the development server**:
+4. **Start Development**:
    ```bash
    npm run dev
    ```
 
-## 📖 Usage
+---
 
-- **Smart Suggest**: Type a project description (e.g., "A banking system where a customer deposits money and the database updates balance") and click **✨ Smart Suggest**.
-- **Manual Editing**: Use the left sidebar to add/remove nodes and define data flows.
-- **Resizing**: Click on any node in the center canvas to show resize handles.
-- **Exporting**: Use the **Export** button in the top navbar to download your final diagram.
+## 📂 Project Structure
 
-## 📜 License
-
-Distributed under the MIT License. See `LICENSE` (if available) for more information.
+```text
+diagram-sathi/
+├── src/
+│   ├── components/       # Specialized UI & Diagram components (Nodes, Edges)
+│   ├── store/            # Zustand state (useDiagramStore.ts)
+│   ├── utils/            # Layout logic (ELK, Dagre) & AI Services
+│   ├── lib/              # Supabase & shared clients
+│   ├── pages/            # Landing, Editor, Dashboard, Auth
+│   └── layouts/          # Application shell & navigation
+├── public/               # Static assets & logos
+└── supabase/             # Edge Functions & Migrations
+```
 
 ---
 
-Built with ❤️ by the DiagramSathi Team.
+## 📖 Usage Tips
+
+- **Smart Prompting**: Use specific keywords like "Level 0 DFD" or "ER Diagram" in the AI prompt for better results.
+- **Layout Refresh**: Use the "Magic Wand" or "Layout" buttons in the editor to trigger the ELK layout engine if nodes overlap during manual editing.
+- **Pan & Zoom**: Use the mouse wheel or trackpad to zoom, and `Space + Drag` to pan the canvas.
+
+---
+
+## 📜 License
+
+Distributed under the MIT License. See `LICENSE` for more information.
+
+---
+
+Built with ❤️ by the **DiagramSathi Team**.

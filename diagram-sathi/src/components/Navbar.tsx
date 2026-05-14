@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import { useDiagramStore } from "../store/useDiagramStore";
 import { useAuth } from "../context/AuthContext";
 import { renameProject } from "../lib/projects";
+import { ThemeToggle } from "./ui/ThemeToggle";
 
 export const Navbar = () => {
   const [isExportOpen, setIsExportOpen] = useState(false);
@@ -57,13 +58,34 @@ export const Navbar = () => {
     await saveProject(session.user.id, !isCurrentlyDraft);
   };
 
-  const { setIsExporting } = useDiagramStore();
+  const { setIsExporting, reactFlowInstance, setSelectedNodeId, setSelectedEdgeId } = useDiagramStore();
 
   const handleExport = async () => {
     const viewportEl = document.querySelector(
       ".react-flow__viewport"
     ) as HTMLElement;
-    if (!viewportEl) return;
+    if (!viewportEl) {
+      toast.error("Export failed. Please try again.");
+      return;
+    }
+
+    // Save current state
+    const prevViewport = reactFlowInstance ? reactFlowInstance.getViewport() : { x: 0, y: 0, zoom: 1 };
+    const prevSelectedNodeId = useDiagramStore.getState().selectedNodeId;
+    const prevSelectedEdgeId = useDiagramStore.getState().selectedEdgeId;
+
+    // Clear selection before capture
+    setSelectedNodeId(null);
+    setSelectedEdgeId(null);
+
+    // Fit view to show all nodes
+    if (reactFlowInstance) {
+      reactFlowInstance.fitView({ duration: 0, padding: 0.15 });
+    }
+
+    // Wait for fitView to apply
+    await new Promise((r) => requestAnimationFrame(r));
+    await new Promise((r) => requestAnimationFrame(r));
 
     // Flash-toggle: hide overlays before capture
     setIsExporting(true);
@@ -108,16 +130,25 @@ export const Navbar = () => {
           flowWrapper.style.background = prevBg;
         }
         setIsExporting(false);
+
+        // Restore previous viewport
+        if (reactFlowInstance) {
+          reactFlowInstance.setViewport(prevViewport);
+        }
+
+        // Restore selection
+        if (prevSelectedNodeId) setSelectedNodeId(prevSelectedNodeId);
+        if (prevSelectedEdgeId) setSelectedEdgeId(prevSelectedEdgeId);
       });
   };
 
   return (
     <>
-      <div className="h-14 bg-[#0f111a]/80 backdrop-blur-md border-b border-slate-800/50 flex items-center justify-between px-6 shrink-0 z-20">
+      <div className="h-14 bg-panel/80 backdrop-blur-md border-b border-border/50 flex items-center justify-between px-6 shrink-0 z-20">
         <div className="flex items-center gap-4">
           <button 
             onClick={() => navigate("/home")}
-            className="text-slate-400 hover:text-slate-200 transition-colors p-1.5 rounded-md hover:bg-slate-800/50 flex items-center justify-center cursor-pointer"
+            className="text-neutral/70 hover:text-neutral transition-colors p-1.5 rounded-md hover:bg-neutral/10 flex items-center justify-center cursor-pointer"
             title="Go to Dashboard"
           >
             <ArrowLeft size={20} />
@@ -133,7 +164,7 @@ export const Navbar = () => {
                   if (e.key === "Enter") handleCommitRename();
                   if (e.key === "Escape") setIsRenaming(false);
                 }}
-                className="text-sm font-semibold text-slate-200 bg-[#0f111a] border border-indigo-500/50 rounded px-1.5 py-0 outline-none w-full max-w-[200px]"
+                className="text-sm font-semibold text-neutral bg-input border border-primary/50 rounded px-1.5 py-0 outline-none w-full max-w-[200px]"
               />
             ) : (
               <div 
@@ -141,10 +172,10 @@ export const Navbar = () => {
                 onClick={handleStartRename}
                 title="Rename diagram"
               >
-                <span className="text-sm font-semibold text-slate-200 truncate border border-transparent rounded px-1 -mx-1 hover:border-slate-700 hover:bg-slate-800/50 transition-colors">
+                <span className="text-sm font-semibold text-neutral truncate border border-transparent rounded px-1 -mx-1 hover:border-border hover:bg-panel transition-colors">
                   {projectTitle}
                 </span>
-                <Pencil className="w-3 h-3 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                <Pencil className="w-3 h-3 text-neutral/50 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
               </div>
             )}
             <span className={`text-[10px] uppercase tracking-wider font-medium ${projectStatus === 'draft' ? 'text-amber-500' : 'text-emerald-500'}`}>
@@ -154,14 +185,15 @@ export const Navbar = () => {
         </div>
         
         <div className="flex items-center gap-5">
-          <button className="text-slate-400 hover:text-slate-200 transition-colors">
+          <ThemeToggle />
+          <button className="text-neutral/70 hover:text-neutral transition-colors">
             <Settings size={20} />
           </button>
-          <button className="text-slate-400 hover:text-slate-200 transition-colors">
+          <button className="text-neutral/70 hover:text-neutral transition-colors">
             <UserCircle size={24} strokeWidth={1.5} />
           </button>
           
-          <div className="w-px h-5 bg-slate-800 mx-1"></div>
+          <div className="w-px h-5 bg-border mx-1"></div>
           
           <button className="text-slate-300 hover:text-white flex items-center gap-2 text-sm font-medium transition-colors">
             <Share2 size={16} /> SHARE
@@ -172,7 +204,7 @@ export const Navbar = () => {
             className={`px-4 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-colors ml-2 cursor-pointer ${
               projectStatus === "draft" 
                 ? "bg-amber-500/20 text-amber-500 border border-amber-500/30"
-                : "bg-slate-800/80 text-slate-300 border border-slate-700 hover:bg-slate-700"
+                : "bg-neutral/10 text-neutral/70 border border-border hover:bg-neutral/20 hover:text-neutral transition-colors"
             }`}
             title={projectStatus === "draft" ? "Remove from Draft" : "Mark as Draft"}
           >
@@ -190,7 +222,7 @@ export const Navbar = () => {
 
       {isExportOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm">
-          <div className="bg-[#0f111a] border border-slate-800 rounded-xl shadow-2xl w-[400px] p-6 flex flex-col gap-6">
+          <div className="bg-panel border border-border rounded-xl shadow-2xl w-[400px] p-6 flex flex-col gap-6">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-bold text-slate-100">Export Diagram</h3>
               <button
@@ -202,7 +234,7 @@ export const Navbar = () => {
               </button>
             </div>
             
-            <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-4 flex justify-between items-center">
+            <div className="bg-input border border-input-border rounded-lg p-4 flex justify-between items-center">
               <div className="flex flex-col">
                 <span className="text-sm font-medium text-slate-300">Background</span>
                 <span className="text-xs text-slate-500 mt-0.5">Toggle PNG Transparency</span>
@@ -212,7 +244,7 @@ export const Navbar = () => {
                 className={`text-sm font-medium px-4 py-2 rounded-md transition-all duration-200 ease-in-out ${
                   isTransparent 
                     ? "bg-[#6366f1]/20 text-[#6366f1] border border-[#6366f1]/30 shadow-[0_0_10px_rgba(99,102,241,0.15)]" 
-                    : "bg-slate-800/80 text-slate-300 border border-slate-700 hover:bg-slate-800"
+                    : "bg-neutral/10 text-neutral/70 border border-border hover:bg-neutral/20 transition-all"
                 }`}
               >
                 {isTransparent ? "Transparent" : "Solid Dark"}

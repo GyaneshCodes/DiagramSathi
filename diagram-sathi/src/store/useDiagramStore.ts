@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { getProject, updateProject, createProject } from "../lib/projects";
 import { applyElkLayout } from "../utils/elkLayout";
 import { measureNodes } from "../utils/measureNodes";
+import type { ReactFlowInstance } from "@xyflow/react";
 
 // Basic structure for our Abstract Syntax Tree (AST) representing a DFD diagram.
 export interface DfdNode {
@@ -54,6 +55,7 @@ interface DiagramState {
   mermaidCode: string;
   latestGeneratedNodeIds: string[];
   projectStatus: "draft" | "active" | "trashed";
+  reactFlowInstance: ReactFlowInstance | null;
 
   // Actions
   setNodes: (nodes: DfdNode[]) => void;
@@ -74,6 +76,7 @@ interface DiagramState {
   setShowCodeInRightPanel: (show: boolean) => void;
   setDirection: (dir: "TB" | "LR") => void;
   setMermaidCode: (code: string) => void;
+  setReactFlowInstance: (instance: ReactFlowInstance | null) => void;
   
   addNode: (node: Partial<DfdNode>) => void;
   addEdge: (edge: Partial<DfdEdge>) => void;
@@ -113,6 +116,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   mermaidCode: "",
   latestGeneratedNodeIds: [],
   projectStatus: "active",
+  reactFlowInstance: null,
 
   setNodes: (nodes) => set({ nodes }),
   setEdges: (edges) => set({ edges }),
@@ -135,6 +139,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
     get().applyLayoutAsync();
   },
   setMermaidCode: (mermaidCode) => set({ mermaidCode }),
+  setReactFlowInstance: (instance) => set({ reactFlowInstance: instance }),
 
   addNode: (node) => {
     const id = `node_${Math.random().toString(36).substr(2, 9)}`;

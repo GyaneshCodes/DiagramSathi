@@ -20,7 +20,7 @@ export const EntityNode = ({ data, id, selected }: NodeProps<Node>) => {
         onResizeEnd={(_, { width, height }) => updateNode(id, { width, height })}
       />
       
-      <div className="px-4 py-2 text-sm text-black text-center break-words max-w-[150px]">
+      <div className="px-4 py-2 text-sm text-black text-center whitespace-normal max-w-[150px]">
         {String(data.label)}
       </div>
 

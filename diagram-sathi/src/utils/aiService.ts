@@ -28,7 +28,7 @@ export const generateDiagramFromDescription = async (
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      console.log(`[Groq] Attempt ${attempt + 1}/${maxRetries}...`);
+      // console.log(`[Groq] Attempt ${attempt + 1}/${maxRetries}...`);
 
       const { data, error } = await Promise.race([
         supabase.functions.invoke('generate-diagram', {
@@ -95,7 +95,7 @@ export const generateDiagramFromDescription = async (
         throw new Error("AI response missing nodes or edges arrays. Please try a different query.");
       }
 
-      console.log(`[Groq] Success! Got ${parsed.nodes.length} nodes and ${parsed.edges.length} edges.`);
+      // console.log(`[Groq] Success! Got ${parsed.nodes.length} nodes and ${parsed.edges.length} edges.`);
       return parsed;
     } catch (error: any) {
       console.warn(`[Groq] Attempt ${attempt + 1} failed:`, error.message);
@@ -110,7 +110,7 @@ export const generateDiagramFromDescription = async (
       
       if (isRetryable && attempt < maxRetries - 1) {
         const delay = (attempt + 1) * 2000;
-        console.log(`[Groq] Retrying in ${delay}ms...`);
+        // console.log(`[Groq] Retrying in ${delay}ms...`);
         await new Promise(r => setTimeout(r, delay));
         continue;
       }

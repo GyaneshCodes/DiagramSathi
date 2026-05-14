@@ -61,7 +61,7 @@ export function TemplateGallery() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 + i * 0.08 }}
               onClick={() => handleCreate(template.type)}
-              className={`group relative flex flex-col items-center justify-center gap-3 p-6 rounded-xl border border-white/8 bg-white/2 ${template.borderHover} hover:bg-white/5 transition-all duration-300 cursor-pointer overflow-hidden`}
+              className={`group relative flex flex-col items-center justify-center gap-3 p-6 rounded-xl border border-border bg-panel ${template.borderHover} hover:bg-neutral/5 transition-all duration-300 cursor-pointer overflow-hidden`}
             >
               {/* Gradient bg */}
               <div
@@ -71,7 +71,7 @@ export function TemplateGallery() {
               {/* Content */}
               <div className="relative z-10 flex flex-col items-center gap-2">
                 <div
-                  className={`w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}
+                  className={`w-12 h-12 rounded-xl bg-neutral/5 border border-border flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}
                 >
                   <template.icon className={`w-5 h-5 ${template.iconColor}`} />
                 </div>

@@ -54,7 +54,7 @@ export function ConfirmModal({
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.15 }}
-            className="relative z-10 w-full max-w-sm mx-4 p-6 rounded-2xl bg-[#1a1725] border border-white/10 shadow-2xl"
+            className="relative z-10 w-full max-w-sm mx-4 p-6 rounded-2xl bg-panel border border-border shadow-2xl"
           >
             <div className="flex items-start gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center shrink-0">
@@ -72,7 +72,7 @@ export function ConfirmModal({
               <button
                 ref={cancelRef}
                 onClick={onCancel}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-neutral/70 bg-white/5 border border-white/10 hover:bg-white/10 transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-lg text-sm font-medium text-neutral/70 bg-input border border-input-border hover:bg-neutral/10 transition-colors cursor-pointer"
               >
                 Cancel
               </button>

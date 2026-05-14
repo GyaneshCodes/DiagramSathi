@@ -53,10 +53,10 @@ const SignInForm = () => {
 
   return (
     <form className="w-full max-w-[320px]" onSubmit={handleSignIn}>
-      <h1 className="text-3xl font-black tracking-tight mb-1 text-[#f3f0ff]">
+      <h1 className="text-3xl font-black tracking-tight mb-1 text-neutral">
         Welcome Back
       </h1>
-      <p className="text-xs text-white/40 mt-1 mb-6">
+      <p className="text-xs text-neutral/40 mt-1 mb-6">
         Sign in to your workspace
       </p>
 
@@ -87,7 +87,7 @@ const SignInForm = () => {
 
       <a
         href="#"
-        className="text-xs text-white/30 my-3 hover:text-[#803bff] transition-colors block text-right"
+        className="text-xs text-neutral/30 my-3 hover:text-primary transition-colors block text-right"
       >
         Forgot password?
       </a>

@@ -14,20 +14,12 @@ export const DashboardLayout = () => {
   ];
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#0A0A0A] text-neutral font-sans selection:bg-primary/30">
+    <div className="flex h-screen w-screen overflow-hidden bg-bg text-neutral font-sans selection:bg-primary/30">
       {/* ── ALBIENT BG ── */}
-      <div className="absolute inset-0 pointer-events-none hero-ambient-bg opacity-40 mix-blend-screen" />
+      <div className="absolute inset-0 pointer-events-none hero-ambient-bg opacity-15 mix-blend-screen" />
 
       {/* ── LEFT SIDEBAR ── */}
-      <aside className="relative z-10 w-64 h-full border-r border-white/5 bg-[#0E0E11] flex flex-col pt-6 pb-6 shadow-2xl shrink-0">
-        {/* <div className="px-6 mb-10 flex items-center gap-3">
-          <img
-            src="/logo2.png"
-            alt="DiagramSathi"
-            className="h-16 w-auto object-contain drop-shadow-[0_0_8px_rgba(128,59,255,0.4)]"
-          />
-        </div> */}
-
+      <aside className="relative z-10 w-64 h-full border-r border-border/50 bg-panel flex flex-col pt-6 pb-6 shadow-2xl shrink-0">
         <nav className="flex-1 px-3 space-y-1">
           {menuItems.map((item) => {
             const isActive =
@@ -40,7 +32,7 @@ export const DashboardLayout = () => {
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer ${
                   isActive
                     ? "bg-primary/10 text-primary border border-primary/20 shadow-sm shadow-primary/5"
-                    : "text-neutral/50 hover:bg-white/5 hover:text-neutral/90"
+                    : "text-neutral/50 hover:bg-neutral/5 hover:text-neutral/90"
                 }`}
               >
                 <item.icon

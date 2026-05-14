@@ -63,7 +63,7 @@ export default function Profile() {
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5, delay: 0.1 }}
-          className="col-span-1 md:col-span-3 glass-card rounded-2xl border border-white/10 bg-white/5 p-8 relative overflow-hidden"
+          className="col-span-1 md:col-span-3 glass-card rounded-2xl p-8 relative overflow-hidden"
         >
           {/* Ambient glow */}
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full max-w-[300px] max-h-[300px] bg-primary/20 blur-[100px] rounded-full pointer-events-none" />
@@ -72,7 +72,7 @@ export default function Profile() {
           {!isEditing && (
             <button
               onClick={() => setIsEditing(true)}
-              className="absolute top-6 right-6 p-2 rounded-full bg-white/5 text-neutral/40 hover:text-primary hover:bg-white/10 transition-colors cursor-pointer group z-20 shadow-sm"
+              className="absolute top-6 right-6 p-2 rounded-full bg-neutral/5 text-neutral/40 hover:text-primary hover:bg-neutral/10 transition-colors cursor-pointer group z-20 shadow-sm"
               title="Edit Profile"
             >
               <Edit2 className="w-5 h-5 group-hover:scale-110 transition-transform" />
@@ -92,7 +92,7 @@ export default function Profile() {
                         className="w-24 h-24 rounded-full object-cover border-2 border-primary border-dashed shadow-xl shadow-primary/20 backdrop-blur-md opacity-80"
                       />
                     ) : (
-                      <div className="w-24 h-24 rounded-full bg-white/10 border-2 border-primary border-dashed flex items-center justify-center shadow-xl shadow-primary/20 backdrop-blur-md text-primary">
+                      <div className="w-24 h-24 rounded-full bg-neutral/5 border-2 border-primary border-dashed flex items-center justify-center shadow-xl shadow-primary/20 backdrop-blur-md text-primary">
                         <Camera className="w-8 h-8 opacity-50" />
                       </div>
                     )}
@@ -107,11 +107,11 @@ export default function Profile() {
                       className="w-24 h-24 rounded-full object-cover border-2 border-primary/50 shadow-xl shadow-primary/20 backdrop-blur-md"
                     />
                   ) : (
-                    <div className="w-24 h-24 rounded-full bg-white/10 border-2 border-primary/50 flex items-center justify-center shadow-xl shadow-primary/20 backdrop-blur-md text-3xl font-bold text-primary uppercase">
+                    <div className="w-24 h-24 rounded-full bg-neutral/10 border-2 border-primary/50 flex items-center justify-center shadow-xl shadow-primary/20 backdrop-blur-md text-3xl font-bold text-primary uppercase">
                       {user?.email?.charAt(0) || <UserCircle className="w-12 h-12" />}
                     </div>
                   )}
-                  <div className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-emerald-500 border-2 border-[#12101a]" title="Online" />
+                  <div className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-emerald-500 border-2 border-bg" title="Online" />
                 </div>
               )}
             </div>
@@ -126,7 +126,7 @@ export default function Profile() {
                     </label>
                     <input
                       type="text"
-                      className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-sm text-neutral outline-none focus:border-primary/50 focus:bg-white/10 transition-all font-semibold"
+                      className="w-full bg-input border border-input-border rounded-lg px-4 py-2 text-sm text-neutral outline-none focus:border-primary/50 focus:bg-input transition-all font-semibold"
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
                       placeholder="e.g. John Doe, Architect"
@@ -138,7 +138,7 @@ export default function Profile() {
                     </label>
                     <input
                       type="text"
-                      className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-sm text-neutral outline-none focus:border-primary/50 focus:bg-white/10 transition-all"
+                      className="w-full bg-input border border-input-border rounded-lg px-4 py-2 text-sm text-neutral outline-none focus:border-primary/50 focus:bg-input transition-all"
                       value={editAvatar}
                       onChange={(e) => setEditAvatar(e.target.value)}
                       placeholder="https://example.com/image.png"
@@ -160,7 +160,7 @@ export default function Profile() {
                     <button
                       onClick={handleCancel}
                       disabled={isSaving}
-                      className="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-neutral font-semibold text-sm cursor-pointer hover:bg-white/10 transition-all"
+                      className="px-4 py-2 rounded-lg bg-neutral/5 border border-border text-neutral font-semibold text-sm cursor-pointer hover:bg-neutral/10 transition-all"
                       title="Cancel"
                     >
                       <X className="w-4 h-4" />
@@ -201,7 +201,7 @@ export default function Profile() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
-          className="glass-card rounded-2xl border border-white/10 bg-white/5 p-6 flex flex-col justify-between hover:bg-white/10 transition-colors duration-500"
+          className="glass-card rounded-2xl p-6 flex flex-col justify-between hover:bg-glass-hover-bg transition-colors duration-500"
         >
           <div className="flex items-center gap-3 mb-6">
             <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center border border-blue-500/20 shadow-inner">
@@ -220,7 +220,7 @@ export default function Profile() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.3 }}
-          className="glass-card rounded-2xl border border-white/10 bg-white/5 p-6 flex flex-col justify-between hover:bg-white/10 transition-colors duration-500"
+          className="glass-card rounded-2xl p-6 flex flex-col justify-between hover:bg-glass-hover-bg transition-colors duration-500"
         >
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 shadow-inner">
@@ -235,7 +235,7 @@ export default function Profile() {
                 <span className="text-neutral/70 group-hover:text-primary transition-colors">Data Flow (DFD)</span>
                 <span className="font-bold">65%</span>
               </div>
-              <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden">
+              <div className="w-full bg-neutral/10 h-2 rounded-full overflow-hidden">
                 <div className="bg-primary w-[65%] h-full group-hover:brightness-125 transition-all" />
               </div>
             </div>
@@ -244,7 +244,7 @@ export default function Profile() {
                 <span className="text-neutral/70 group-hover:text-emerald-400 transition-colors">Entity Rel. (ER)</span>
                 <span className="font-bold">35%</span>
               </div>
-              <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden">
+              <div className="w-full bg-neutral/10 h-2 rounded-full overflow-hidden">
                 <div className="bg-emerald-400 w-[35%] h-full group-hover:brightness-125 transition-all" />
               </div>
             </div>
@@ -256,14 +256,14 @@ export default function Profile() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.4 }}
-          className="glass-card rounded-2xl border border-white/10 bg-white/5 p-6 flex flex-col justify-between hover:bg-white/10 transition-colors duration-500"
+          className="glass-card rounded-2xl p-6 flex flex-col justify-between hover:bg-glass-hover-bg transition-colors duration-500"
         >
           <div>
             <h3 className="font-semibold text-neutral mb-1">Plan & Usage</h3>
             <p className="text-xs text-neutral/50">Current subscription details</p>
           </div>
           
-          <div className="mt-4 bg-[#12101a] rounded-xl block p-4 border border-white/5 relative overflow-hidden group hover:border-primary/30 transition-colors cursor-pointer">
+          <div className="mt-4 bg-bg rounded-xl block p-4 border border-border relative overflow-hidden group hover:border-primary/30 transition-colors cursor-pointer">
             <div className="absolute top-0 right-0 p-3">
                <span className="text-[10px] font-mono text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full shadow-sm shadow-primary/10">
                  PRO TIER

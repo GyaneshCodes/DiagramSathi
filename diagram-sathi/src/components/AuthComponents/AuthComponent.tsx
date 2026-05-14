@@ -41,15 +41,15 @@ export const InputField = ({
         required
         value={currentValue}
         onChange={handleChange}
-        className="w-full py-3.5 px-4 bg-[#12101a] border border-white/10 rounded-xl outline-none text-sm font-medium text-[#f3f0ff] placeholder-white/25 focus:border-[#803bff] focus:ring-1 focus:ring-[#803bff]/50 focus:shadow-[0_0_20px_-6px_rgba(128,59,255,0.3)] transition-all duration-300"
+        className="w-full py-3.5 px-4 bg-input border border-input-border rounded-xl outline-none text-sm font-medium text-neutral placeholder-neutral/30 focus:border-primary/50 focus:ring-1 focus:ring-primary/50 focus:shadow-[0_0_20px_-6px_rgba(128,59,255,0.3)] transition-all duration-300"
       />
-      <div className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 transition-colors duration-300 group-focus-within:text-[#803bff]/60">
+      <div className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral/30 transition-colors duration-300 group-focus-within:text-primary/60">
         {isPasswordField ? (
           hasValue ? (
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="hover:text-[#803bff] transition-colors cursor-pointer"
+              className="hover:text-primary transition-colors cursor-pointer"
             >
               {showPassword ? <Eye size={18} /> : <EyeOff size={18} />}
             </button>
@@ -83,9 +83,9 @@ export const Button = ({
     "w-full h-12 rounded-xl font-bold text-sm uppercase tracking-wide cursor-pointer transition-all duration-300 flex items-center justify-center";
   const variants: Record<string, string> = {
     primary:
-      "bg-linear-to-r from-[#803bff] to-[#6025cc] text-[#f3f0ff] shadow-lg shadow-[#803bff]/20 hover:shadow-[#803bff]/35 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100",
+      "bg-linear-to-r from-primary to-primary/80 text-white shadow-lg shadow-primary/20 hover:shadow-primary/35 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100",
     outline:
-      "bg-transparent border border-white/20 text-[#f3f0ff] hover:bg-white/5 hover:border-white/30 backdrop-blur-sm",
+      "bg-transparent border border-border text-neutral hover:bg-neutral/5 hover:border-neutral/30 backdrop-blur-sm",
   };
 
   return (
@@ -117,7 +117,7 @@ export const SocialButton = ({
     type="button"
     onClick={onClick}
     disabled={disabled}
-    className="w-full h-12 rounded-xl font-semibold text-sm cursor-pointer transition-all duration-300 flex items-center justify-center gap-3 bg-white/5 border border-white/10 text-[#f3f0ff] hover:bg-white/10 hover:border-white/20 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+    className="w-full h-12 rounded-xl font-semibold text-sm cursor-pointer transition-all duration-300 flex items-center justify-center gap-3 bg-neutral/5 border border-border text-neutral hover:bg-neutral/10 hover:border-border transition-all duration-300 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
   >
     {icon}
     {children}
@@ -126,11 +126,11 @@ export const SocialButton = ({
 
 export const Divider = () => (
   <div className="flex items-center gap-4 my-5">
-    <div className="flex-1 h-px bg-white/10" />
-    <span className="text-[11px] text-white/30 uppercase tracking-widest font-medium">
+    <div className="flex-1 h-px bg-border" />
+    <span className="text-[11px] text-neutral/30 uppercase tracking-widest font-medium">
       or
     </span>
-    <div className="flex-1 h-px bg-white/10" />
+    <div className="flex-1 h-px bg-border" />
   </div>
 );
 

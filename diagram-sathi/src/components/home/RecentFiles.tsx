@@ -132,7 +132,7 @@ export function RecentFiles({ projects, loading, onRefresh }: RecentFilesProps) 
           {[1, 2, 3].map((i) => (
             <div
               key={i}
-              className="w-56 h-40 rounded-xl bg-white/3 border border-white/6 animate-pulse shrink-0"
+              className="w-56 h-40 rounded-xl bg-panel border border-border animate-pulse shrink-0"
             />
           ))}
         </div>
@@ -175,7 +175,7 @@ export function RecentFiles({ projects, loading, onRefresh }: RecentFilesProps) 
               className="group relative flex flex-col w-full cursor-pointer"
             >
               {/* Thumbnail card */}
-              <div className="relative aspect-video rounded-xl border border-white/8 bg-white/3 flex items-center justify-center overflow-hidden group-hover:border-primary/25 transition-all duration-300">
+              <div className="relative aspect-video rounded-xl border border-border bg-panel flex items-center justify-center overflow-hidden group-hover:border-primary/25 transition-all duration-300">
                 <DiagramTypeIcon type={project.diagram_type} />
 
                 {/* Badges */}
@@ -186,7 +186,7 @@ export function RecentFiles({ projects, loading, onRefresh }: RecentFilesProps) 
                     </span>
                   )}
                   {project.status === "draft" && (
-                    <span className="px-1.5 py-0.5 rounded-md bg-white/10 text-neutral/50 text-[9px] font-semibold uppercase tracking-wider">
+                    <span className="px-1.5 py-0.5 rounded-md bg-neutral/10 text-neutral/50 text-[9px] font-semibold uppercase tracking-wider">
                       Draft
                     </span>
                   )}
@@ -212,7 +212,7 @@ export function RecentFiles({ projects, loading, onRefresh }: RecentFilesProps) 
                         if (e.key === "Escape") setRenamingId(null);
                       }}
                       onClick={(e) => e.stopPropagation()}
-                      className="text-sm font-semibold text-neutral bg-white/10 border border-primary/50 rounded px-1.5 py-0.5 outline-none w-full"
+                      className="text-sm font-semibold text-neutral bg-input border border-primary/50 rounded px-1.5 py-0.5 outline-none w-full"
                     />
                   ) : (
                     <h3 className="text-sm font-semibold text-neutral/85 truncate group-hover:text-primary transition-colors duration-200">

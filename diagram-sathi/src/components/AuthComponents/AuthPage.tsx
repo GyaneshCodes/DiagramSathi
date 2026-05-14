@@ -31,10 +31,10 @@ const AuthPage = () => {
   // Show loading state while checking auth
   if (isLoading) {
     return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-[#12101a]">
+      <div className="min-h-screen w-full flex items-center justify-center bg-bg">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-2 border-[#803bff]/30 border-t-[#803bff] rounded-full animate-spin" />
-          <span className="text-white/30 text-xs font-mono tracking-widest uppercase">
+          <div className="w-10 h-10 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+          <span className="text-neutral/30 text-xs font-mono tracking-widest uppercase">
             Loading...
           </span>
         </div>
@@ -46,16 +46,15 @@ const AuthPage = () => {
   if (user) return null;
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-[#12101a] p-5 font-sans relative overflow-hidden">
-      {/* Ambient Background */}
+    <div className="min-h-screen w-full flex items-center justify-center bg-bg p-5 font-sans relative overflow-hidden">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-15%] right-[-10%] w-[700px] h-[700px] bg-[#803bff]/8 rounded-full blur-[120px]" />
-        <div className="absolute bottom-[-15%] left-[-10%] w-[600px] h-[600px] bg-[#803bff]/5 rounded-full blur-[100px]" />
+        <div className="absolute top-[-15%] right-[-10%] w-[700px] h-[700px] bg-primary/8 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-15%] left-[-10%] w-[600px] h-[600px] bg-primary/5 rounded-full blur-[100px]" />
         <div className="absolute top-[40%] left-[50%] w-[400px] h-[400px] bg-blue-600/3 rounded-full blur-[80px]" />
       </div>
 
       <div
-        className={`relative bg-[#1a1725] border border-white/8 rounded-[30px] shadow-2xl shadow-black/40 overflow-hidden w-full max-w-[880px] min-h-[580px] z-10 ${
+        className={`relative bg-panel border border-border rounded-[30px] shadow-2xl shadow-black/40 overflow-hidden w-full max-w-[880px] min-h-[580px] z-10 ${
           isActive ? "active" : ""
         }`}
       >
@@ -68,7 +67,7 @@ const AuthPage = () => {
                 ? "opacity-100 translate-x-0 md:translate-x-full z-50"
                 : "opacity-0 z-0 md:z-10"
             }
-            flex flex-col items-center justify-center px-10 text-center bg-[#1a1725]`}
+            flex flex-col items-center justify-center px-10 text-center bg-panel`}
         >
           <SignUpForm />
         </div>
@@ -82,7 +81,7 @@ const AuthPage = () => {
                 ? "opacity-0 -translate-x-full md:translate-x-full"
                 : "opacity-100 translate-x-0 md:translate-x-0"
             }
-            flex flex-col items-center justify-center px-10 text-center bg-[#1a1725]`}
+            flex flex-col items-center justify-center px-10 text-center bg-panel`}
         >
           <SignInForm />
         </div>
@@ -97,7 +96,7 @@ const AuthPage = () => {
             }`}
         >
           <div
-            className={`relative -left-full h-full w-[200%] bg-linear-to-br from-[#803bff] via-[#6025cc] to-[#4a1a99] text-[#f3f0ff] transform transition-transform duration-700 ease-in-out
+            className={`relative -left-full h-full w-[200%] bg-linear-to-br from-primary via-primary/80 to-primary/60 text-white transform transition-transform duration-700 ease-in-out
               ${isActive ? "translate-x-1/2" : "translate-x-0"}`}
           >
             {/* Left Panel — shown when Sign Up is active → prompts to Sign In */}
@@ -159,7 +158,7 @@ const AuthPage = () => {
               const next = !isActive;
               animateAndNavigate(next, next ? "/signup" : "/signin");
             }}
-            className="text-[#803bff] hover:text-[#9b66ff] text-sm font-semibold transition-colors cursor-pointer"
+            className="text-primary hover:text-primary/80 text-sm font-semibold transition-colors cursor-pointer"
           >
             {isActive
               ? "Already have an account? Sign In"

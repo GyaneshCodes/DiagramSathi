@@ -88,7 +88,7 @@ export function HeroSection() {
         initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
-        className="relative rounded-2xl bg-white/3 border border-white/10 group focus-within:border-primary/40 focus-within:shadow-[0_0_40px_-10px_rgba(128,59,255,0.15)] transition-all duration-500"
+        className="relative rounded-2xl bg-panel border border-border group focus-within:border-primary/40 focus-within:shadow-[0_0_40px_-10px_rgba(128,59,255,0.15)] transition-all duration-500"
       >
         {/* Glow line */}
         <div className="absolute top-0 left-0 w-full h-1 rounded-t-2xl bg-linear-gradient-to-r from-primary/0 via-primary/50 to-primary/0 opacity-0 group-focus-within:opacity-100 transition-opacity duration-500" />
@@ -109,12 +109,12 @@ export function HeroSection() {
         />
 
         {/* Bottom bar */}
-        <div className="flex items-center justify-between px-5 py-3 border-t border-white/5 bg-white/1 rounded-b-2xl">
+        <div className="flex items-center justify-between px-5 py-3 border-t border-border bg-neutral/5 rounded-b-2xl">
           {/* Diagram Type Dropdown */}
           <div className="relative">
             <button
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-sm text-neutral/70 hover:text-neutral hover:border-white/20 transition-all duration-200 cursor-pointer"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-neutral/5 border border-border text-sm text-neutral/70 hover:text-neutral hover:border-primary/30 transition-all duration-200 cursor-pointer"
             >
               <span className="text-[10px] font-mono uppercase tracking-wider text-neutral/50">
                 Type:
@@ -130,7 +130,7 @@ export function HeroSection() {
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
-                className="absolute top-full left-0 mt-2 z-50 min-w-[220px] bg-[#1a1725] border border-white/10 rounded-xl shadow-2xl overflow-hidden"
+                className="absolute top-full left-0 mt-2 z-50 min-w-[220px] bg-panel border border-border rounded-xl shadow-2xl overflow-hidden"
               >
                 {DIAGRAM_TYPES.map((type) => (
                   <button
@@ -142,7 +142,7 @@ export function HeroSection() {
                     className={`w-full text-left px-4 py-2.5 text-sm transition-colors duration-150 cursor-pointer ${
                       selectedType === type.value
                         ? "bg-primary/15 text-primary font-medium"
-                        : "text-neutral/70 hover:bg-white/5 hover:text-neutral"
+                        : "text-neutral/70 hover:bg-neutral/5 hover:text-neutral"
                     }`}
                   >
                     {type.label}
@@ -179,7 +179,7 @@ export function HeroSection() {
           <button
             key={i}
             onClick={() => handleChipClick(chip)}
-            className="px-3 py-1 rounded-full bg-white/4 border border-white/10 text-[11px] text-neutral/50 hover:text-neutral/80 hover:bg-white/8 hover:border-primary/20 transition-all duration-200 cursor-pointer whitespace-nowrap"
+            className="px-3 py-1 rounded-full bg-neutral/5 border border-border text-[11px] text-neutral/50 hover:text-neutral/80 hover:bg-neutral/10 hover:border-primary/20 transition-all duration-200 cursor-pointer whitespace-nowrap"
           >
             {chip.length > 40 ? chip.slice(0, 40) + "…" : chip}
           </button>

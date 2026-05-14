@@ -63,7 +63,7 @@ export function Editor() {
     const timer = setTimeout(() => {
       // Auto-save logic
       saveProject(userId).then(() => {
-         console.log("Auto-saved successfully");
+         // console.log("Auto-saved successfully");
       }).catch(err => console.error("Auto-save failed", err));
     }, 2000); // 2 second debounce
 
