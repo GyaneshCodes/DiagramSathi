@@ -409,6 +409,8 @@ export const GroupNode = () => {
 import { ProcessNode } from "./ProcessNode";
 import { EntityNode } from "./EntityNode";
 import { DataStoreNode } from "./DataStoreNode";
+import { ErSchemaNode } from "./ErSchemaNode";
+import { ErContainerNode } from "./ErContainerNode";
 
 export const nodeTypes = {
   rectangle: RectangleNode,
@@ -422,4 +424,6 @@ export const nodeTypes = {
   process: ProcessNode,
   entity: EntityNode,
   datastore: DataStoreNode,
+  "er-schema": ErSchemaNode,
+  "er-container": ErContainerNode,
 };

@@ -30,10 +30,12 @@ import {
   type DfdEdge,
 } from "../store/useDiagramStore";
 import { RefreshCw } from "lucide-react";
+import { useErDiagramStore } from "../store/useErDiagramStore";
 import { getNodeDimensions } from "../utils/layoutConfiguration";
 import { TopToolbar } from "./ui/TopToolbar";
 import { nodeTypes } from "./diagram/Nodes";
 import { ElkPolylineEdge } from "./diagram/ElkPolylineEdge";
+import { ErRelationshipEdge } from "./diagram/ErRelationshipEdge";
 
 /**
  * PaneCenterCanvas Module
@@ -199,6 +201,7 @@ const FloatingSmoothStepEdge = ({
 const edgeTypes = {
   smoothstep: FloatingSmoothStepEdge,
   "elk-polyline": ElkPolylineEdge,
+  "er-relationship": ErRelationshipEdge,
 };
 
 // ========================
@@ -253,7 +256,10 @@ const PaneCenterCanvasInner = () => {
       }
 
       let rfNodes: Node[] = astNodes.map((n: DfdNode, index: number) => {
-        const dims = getNodeDimensions(n.type, n.width, n.height);
+        const isErContainer = n.type === "er-container";
+        const dims = isErContainer
+          ? { width: n.width || 400, height: n.height || 200 }
+          : getNodeDimensions(n.type, n.width, n.height);
         return {
           id: n.id,
           type: n.type,
@@ -261,7 +267,9 @@ const PaneCenterCanvasInner = () => {
           width: dims.width,
           height: dims.height,
           data: { label: n.label, color: n.color },
-          draggable: true,
+          draggable: !isErContainer,
+          selectable: !isErContainer,
+          style: isErContainer ? { width: dims.width, height: dims.height, zIndex: -1 } : undefined,
           ...(n.parentId ? { parentId: n.parentId } : {}),
         };
       });
@@ -279,6 +287,25 @@ const PaneCenterCanvasInner = () => {
         const pairTotal = pairCounts.get(key) ?? 1;
         const pairIndex = pairSeen.get(key) ?? 0;
         pairSeen.set(key, pairIndex + 1);
+
+        // ER diagrams use their own edge type
+        if (diagramType === "er") {
+          return {
+            id: e.id,
+            source: e.source,
+            target: e.target,
+            type: "er-relationship",
+            data: {},
+            markerEnd: {
+              type: MarkerType.ArrowClosed,
+              color: "var(--edge-color)",
+            },
+            style: {
+              stroke: "var(--edge-color)",
+              strokeWidth: 2,
+            },
+          };
+        }
 
         // Use ELK polyline when we have full routing data from ELK
         const hasElkRouting = e.data?.startPoint && e.data?.endPoint;
@@ -381,22 +408,39 @@ const PaneCenterCanvasInner = () => {
 
   const onNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
+      // Route ER schema clicks to the ER store, not the DFD properties panel
+      if (diagramType === "er" && node.type === "er-schema") {
+        const schemaId = node.id.replace("er_", "");
+        useErDiagramStore.getState().setSelectedSchemaId(schemaId);
+        return;
+      }
       setSelectedNodeId(node.id);
     },
-    [setSelectedNodeId],
+    [setSelectedNodeId, diagramType],
   );
 
   const onEdgeClick = useCallback(
     (_: React.MouseEvent, edge: Edge) => {
+      // Route ER relationship clicks to the ER store
+      if (diagramType === "er" && edge.type === "er-relationship") {
+        const relId = edge.id.replace("er_rel_", "");
+        useErDiagramStore.getState().setSelectedRelationshipId(relId);
+        return;
+      }
       setSelectedEdgeId(edge.id);
     },
-    [setSelectedEdgeId],
+    [setSelectedEdgeId, diagramType],
   );
 
   const onPaneClick = useCallback(() => {
     setSelectedNodeId(null);
     setSelectedEdgeId(null);
-  }, [setSelectedNodeId, setSelectedEdgeId]);
+    // Clear ER-specific selection when clicking the pane
+    if (diagramType === "er") {
+      useErDiagramStore.getState().setSelectedSchemaId(null);
+      useErDiagramStore.getState().setSelectedRelationshipId(null);
+    }
+  }, [setSelectedNodeId, setSelectedEdgeId, diagramType]);
 
   const onNodesDelete = useCallback(
     (deletedNodes: Node[]) => {
@@ -410,6 +454,42 @@ const PaneCenterCanvasInner = () => {
       deletedEdges.forEach((edge) => removeEdge(edge.id));
     },
     [removeEdge],
+  );
+
+  // Recalculate ER container bounds when schema nodes are dragged
+  const onNodeDragStop = useCallback(
+    (_: React.MouseEvent, node: Node) => {
+      if (diagramType === "er" && node.type === "er-schema") {
+        // Update position in main store
+        useDiagramStore.getState().updateNode(node.id, {
+          position: node.position,
+        });
+        // Recalculate container bounds
+        const allNodes = useDiagramStore.getState().nodes;
+        const schemaDfdNodes = allNodes.filter((n) => n.type === "er-schema");
+        if (schemaDfdNodes.length > 0) {
+          const pad = 50;
+          const topExtra = 44;
+          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+          schemaDfdNodes.forEach((n) => {
+            const x = n.id === node.id ? node.position.x : (n.position?.x ?? 0);
+            const y = n.id === node.id ? node.position.y : (n.position?.y ?? 0);
+            const w = n.width ?? 300;
+            const h = n.height ?? 76;
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x + w);
+            maxY = Math.max(maxY, y + h);
+          });
+          useDiagramStore.getState().updateNode("er-container", {
+            position: { x: minX - pad, y: minY - pad - topExtra },
+            width: maxX - minX + pad * 2,
+            height: maxY - minY + pad * 2 + topExtra,
+          });
+        }
+      }
+    },
+    [diagramType],
   );
 
   return (
@@ -458,6 +538,7 @@ const PaneCenterCanvasInner = () => {
           onNodesDelete={onNodesDelete}
           onEdgesDelete={onEdgesDelete}
           onPaneClick={onPaneClick}
+          onNodeDragStop={onNodeDragStop}
           deleteKeyCode={["Delete", "Backspace"]}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}

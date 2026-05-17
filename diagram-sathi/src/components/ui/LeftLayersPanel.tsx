@@ -16,6 +16,8 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "../../context/AuthContext";
 import { logAiGeneration } from "../../lib/projects";
+import { ErLeftPanel } from "./ErLeftPanel";
+import { useErDiagramStore } from "../../store/useErDiagramStore";
 
 /**
  * LeftLayersPanel Component
@@ -74,40 +76,54 @@ export const LeftLayersPanel = () => {
         dfdLevel
       );
       
-      const generatedNodes = result.nodes as any[];
-      
-      // Auto-heal edges: AI sometimes uses node labels instead of IDs for source/target
-      const generatedEdges = result.edges.map((e, i) => {
-        let sourceId = String(e.source || "");
-        let targetId = String(e.target || "");
+      if (preferredDiagramType === "er") {
+        const erResult = result as { schemas: any[]; relationships: any[] };
+        await useErDiagramStore.getState().applyAIGeneratedEr(erResult.schemas, erResult.relationships);
         
-        if (!generatedNodes.find(n => n.id === sourceId)) {
-          const match = generatedNodes.find(n => n.label?.toLowerCase() === sourceId.toLowerCase());
-          if (match) sourceId = match.id;
+        if (session?.user?.id) {
+          logAiGeneration(
+            session.user.id,
+            currentProjectId,
+            projectDescription,
+            erResult
+          );
         }
-        if (!generatedNodes.find(n => n.id === targetId)) {
-          const match = generatedNodes.find(n => n.label?.toLowerCase() === targetId.toLowerCase());
-          if (match) targetId = match.id;
+      } else {
+        const generatedNodes = result.nodes as any[];
+        
+        // Auto-heal edges: AI sometimes uses node labels instead of IDs for source/target
+        const generatedEdges = result.edges!.map((e, i) => {
+          let sourceId = String(e.source || "");
+          let targetId = String(e.target || "");
+          
+          if (!generatedNodes.find(n => n.id === sourceId)) {
+            const match = generatedNodes.find(n => n.label?.toLowerCase() === sourceId.toLowerCase());
+            if (match) sourceId = match.id;
+          }
+          if (!generatedNodes.find(n => n.id === targetId)) {
+            const match = generatedNodes.find(n => n.label?.toLowerCase() === targetId.toLowerCase());
+            if (match) targetId = match.id;
+          }
+
+          return {
+            ...e,
+            source: sourceId,
+            target: targetId,
+            id: `ai_edge_${i}_${Math.random().toString(36).substr(2, 4)}`
+          };
+        }) as any;
+
+        await applyAIGeneratedDiagram(generatedNodes, generatedEdges);
+        
+        // Log the generation to Supabase
+        if (session?.user?.id) {
+          logAiGeneration(
+            session.user.id,
+            currentProjectId,
+            projectDescription,
+            { nodes: generatedNodes, edges: generatedEdges }
+          );
         }
-
-        return {
-          ...e,
-          source: sourceId,
-          target: targetId,
-          id: `ai_edge_${i}_${Math.random().toString(36).substr(2, 4)}`
-        };
-      }) as any;
-
-      await applyAIGeneratedDiagram(generatedNodes, generatedEdges);
-      
-      // Log the generation to Supabase
-      if (session?.user?.id) {
-        logAiGeneration(
-          session.user.id,
-          currentProjectId,
-          projectDescription,
-          { nodes: generatedNodes, edges: generatedEdges }
-        );
       }
 
       // Auto-save the generated diagram immediately
@@ -179,10 +195,19 @@ export const LeftLayersPanel = () => {
         {/* Mutable Diagram Type Toggle */}
         <div className="flex flex-col gap-2">
           <div className="flex text-[10px] rounded-md overflow-hidden border border-border/80 p-0.5 bg-bg/50">
-            {(["dfd", "flowchart"] as const).map((type) => (
+            {(["dfd", "flowchart", "er"] as const).map((type) => (
               <button
                 key={type}
-                onClick={() => setPreferredDiagramType(type)}
+                onClick={() => {
+                  setPreferredDiagramType(type);
+                  if (type === "er") {
+                    useDiagramStore.getState().setDiagramType("er");
+                    // Sync ER store to main store to show ER nodes
+                    useErDiagramStore.getState().syncToMainStore();
+                  } else {
+                    useDiagramStore.getState().setDiagramType(type);
+                  }
+                }}
                 className={`flex-1 py-1.5 text-center font-medium rounded-sm transition-colors ${
                   preferredDiagramType === type
                     ? "bg-primary text-white shadow-sm"
@@ -196,7 +221,9 @@ export const LeftLayersPanel = () => {
           <p className="text-[10px] text-neutral/50 italic px-1">
             {preferredDiagramType === "flowchart"
               ? "The Step-by-Step Logic Builder. Focus on the sequential 'how-to' of a task."
-              : "The System Information Map. Focus on the movement and transformation of data."}
+              : preferredDiagramType === "er"
+                ? "The Data Relationship Mapper. Design database schemas and their connections."
+                : "The System Information Map. Focus on the movement and transformation of data."}
           </p>
 
           {preferredDiagramType === "dfd" && (
@@ -242,7 +269,10 @@ export const LeftLayersPanel = () => {
 
       <hr className="border-b w-[90%] mx-auto border-border/80" />
 
-      {/* Bottom: Layers */}
+      {/* Bottom: Layers or ER Panel */}
+      {preferredDiagramType === "er" ? (
+        <ErLeftPanel />
+      ) : (
       <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
         <div>
           <div className="flex items-center justify-between mb-2">
@@ -345,6 +375,7 @@ export const LeftLayersPanel = () => {
           </ul>
         </div>
       </div>
+      )}
     </div>
   );
 };

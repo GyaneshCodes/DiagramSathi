@@ -9,6 +9,7 @@ import {
   Box,
 } from "lucide-react";
 import { CodeEditorPanel } from "./CodeEditorPanel";
+import { ErRightPanel } from "./ErRightPanel";
 
 /**
  * RightPropertiesPanel Component
@@ -76,7 +77,7 @@ export const RightPropertiesPanel = () => {
 
       <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-6">
         {/* State: Empty Selection (Global Settings) */}
-        {!selectedNode && !selectedEdge && (
+        {!selectedNode && !selectedEdge && diagramType !== "er" && (
           <div className="flex flex-col gap-4 animate-in fade-in duration-200">
             <div>
               <label className="text-[10px] font-bold text-neutral/40 uppercase tracking-wider mb-2 flex items-center gap-1">
@@ -101,8 +102,11 @@ export const RightPropertiesPanel = () => {
           </div>
         )}
 
-        {/* State: Node Selected */}
-        {selectedNode && (
+        {/* ER Mode */}
+        {diagramType === "er" && <ErRightPanel />}
+
+        {/* State: Node Selected (DFD / Flowchart only) */}
+        {selectedNode && diagramType !== "er" && (
           <div className="flex flex-col gap-5 animate-in fade-in slide-in-from-right-2 duration-200">
             <div>
               <label className="text-[10px] font-bold text-neutral/40 uppercase tracking-wider mb-1.5 flex items-center gap-1">
@@ -182,8 +186,8 @@ export const RightPropertiesPanel = () => {
           </div>
         )}
 
-        {/* State: Edge Selected */}
-        {selectedEdge && (
+        {/* State: Edge Selected (DFD / Flowchart only) */}
+        {selectedEdge && diagramType !== "er" && (
           <div className="flex flex-col gap-5 animate-in fade-in slide-in-from-right-2 duration-200">
             <div>
               <label className="text-[10px] font-bold text-neutral/40 uppercase tracking-wider mb-1.5 block">

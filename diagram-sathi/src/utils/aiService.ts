@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { normalizeAIErResponse } from './erAiService';
 
 export interface AINode {
   id: string;
@@ -16,6 +17,9 @@ export interface AIEdge {
 export interface AIGeneratedDiagram {
   nodes: AINode[];
   edges: AIEdge[];
+  // ER format
+  schemas?: any[];
+  relationships?: any[];
 }
 
 export const generateDiagramFromDescription = async (
@@ -89,6 +93,11 @@ export const generateDiagramFromDescription = async (
         const customErr = new Error(errMsg);
         (customErr as any).isRetryable = isHighDemand;
         throw customErr;
+      }
+
+      // Handle ER response shape
+      if (parsed.schemas || parsed.relationships) {
+        return normalizeAIErResponse(parsed as any) as any;
       }
 
       if (!parsed || !Array.isArray(parsed.nodes) || !Array.isArray(parsed.edges)) {

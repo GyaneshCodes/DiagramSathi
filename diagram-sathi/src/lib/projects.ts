@@ -12,6 +12,8 @@ export interface Project {
   status: "draft" | "active" | "trashed";
   is_pinned: boolean;
   trashed_at: string | null;
+  er_data: any | null;
+  dfd_level: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -53,7 +55,7 @@ export async function getProject(projectId: string) {
 /** Create a new project */
 export async function createProject(
   userId: string,
-  data: Partial<Pick<Project, "title" | "description" | "diagram_type" | "mermaid_code" | "ast_data" | "status" | "canvas_settings">>,
+  data: Partial<Pick<Project, "title" | "description" | "diagram_type" | "mermaid_code" | "ast_data" | "status" | "canvas_settings" | "er_data" | "dfd_level">>,
 ) {
   const now = new Date().toISOString();
   const { data: newProject, error } = await supabase
@@ -74,7 +76,7 @@ export async function createProject(
 /** Update project fields (used for auto-save) */
 export async function updateProject(
   projectId: string,
-  fields: Partial<Pick<Project, "title" | "description" | "mermaid_code" | "ast_data" | "canvas_settings" | "status">>,
+  fields: Partial<Pick<Project, "title" | "description" | "mermaid_code" | "ast_data" | "canvas_settings" | "status" | "er_data" | "dfd_level">>,
 ) {
   const { data, error } = await supabase
     .from("projects")

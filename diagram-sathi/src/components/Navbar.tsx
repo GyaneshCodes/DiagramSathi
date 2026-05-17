@@ -62,7 +62,7 @@ export const Navbar = () => {
 
   const handleExport = async () => {
     const viewportEl = document.querySelector(
-      ".react-flow__viewport"
+      ".react-flow"
     ) as HTMLElement;
     if (!viewportEl) {
       toast.error("Export failed. Please try again.");
@@ -80,7 +80,7 @@ export const Navbar = () => {
 
     // Fit view to show all nodes
     if (reactFlowInstance) {
-      reactFlowInstance.fitView({ duration: 0, padding: 0.15 });
+      reactFlowInstance.fitView({ duration: 0, padding: 0.2 });
     }
 
     // Wait for fitView to apply

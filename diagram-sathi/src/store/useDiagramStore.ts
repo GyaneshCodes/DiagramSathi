@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { useErDiagramStore } from "./useErDiagramStore";
 import { getProject, updateProject, createProject } from "../lib/projects";
 import { applyElkLayout } from "../utils/elkLayout";
 import { measureNodes } from "../utils/measureNodes";
@@ -39,7 +40,7 @@ interface DiagramState {
   projectTitle: string;
   projectDescription: string;
   diagramType: "dfd" | "er" | "flowchart";
-  preferredDiagramType: "dfd" | "flowchart";
+  preferredDiagramType: "dfd" | "flowchart" | "er";
   dfdLevel: number;
   layoutVersion: number;
   isLayouting: boolean;
@@ -64,7 +65,7 @@ interface DiagramState {
   setProjectTitle: (title: string) => void;
   setProjectDescription: (desc: string) => void;
   setDiagramType: (type: "dfd" | "er" | "flowchart") => void;
-  setPreferredDiagramType: (type: "dfd" | "flowchart") => void;
+  setPreferredDiagramType: (type: "dfd" | "flowchart" | "er") => void;
   setDfdLevel: (level: number) => void;
   setIsGenerating: (is: boolean) => void;
   setActiveTool: (tool: "cursor" | "pan") => void;
@@ -90,7 +91,7 @@ interface DiagramState {
   applyLayoutAsync: () => Promise<void>;
   forceLayoutRefresh: () => void;
   saveLayoutToSupabase: () => Promise<void>;
-  resetToBlank: (type: "dfd" | "flowchart") => void;
+  resetToBlank: (type: "dfd" | "flowchart" | "er") => void;
 }
 
 export const useDiagramStore = create<DiagramState>((set, get) => ({
@@ -262,36 +263,44 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       projectDescription: "",
       diagramType: type,
       preferredDiagramType: type,
-      dfdLevel: 0,
+      dfdLevel: type === "dfd" ? 0 : 0,
       selectedNodeId: null,
       selectedEdgeId: null,
       projectStatus: "active",
     });
+    if (type === "er") {
+      useErDiagramStore.getState().reset();
+      useErDiagramStore.getState().syncToMainStore();
+    } else {
+      useErDiagramStore.getState().reset();
+    }
   },
 
   loadProject: async (projectId) => {
     try {
       const project = await getProject(projectId);
-      if (project.ast_data) {
-        const { nodes, edges } = project.ast_data as any;
-        set({
-          nodes: nodes || [],
-          edges: edges || [],
-          currentProjectId: projectId,
-          projectTitle: project.title,
-          projectDescription: project.description || "",
-          diagramType: project.diagram_type,
-          projectStatus: project.status,
-          layoutVersion: (get().layoutVersion + 1) % 1000,
-        });
-      } else {
-        set({ 
-          currentProjectId: projectId, 
-          projectTitle: project.title,
-          projectDescription: project.description || "",
-          diagramType: project.diagram_type,
-          projectStatus: project.status
-        });
+      const ast = project.ast_data as { nodes?: any[]; edges?: any[] } | null;
+
+      set({
+        currentProjectId: projectId,
+        projectTitle: project.title,
+        projectDescription: project.description || "",
+        nodes: ast?.nodes || [],
+        edges: ast?.edges || [],
+        diagramType: project.diagram_type || "dfd",
+        preferredDiagramType: project.diagram_type || "dfd",
+        dfdLevel: project.dfd_level || 0,
+        projectStatus: project.status,
+        mermaidCode: project.mermaid_code || "",
+        layoutVersion: (get().layoutVersion + 1) % 1000,
+      });
+
+      // Hydrate ER store for ER diagrams (only if er_data has actual schemas)
+      const erData = project.er_data as { schemas?: any[]; relationships?: any[] } | null;
+      if (erData && erData.schemas && erData.schemas.length > 0) {
+        useErDiagramStore.getState().loadFromAstData(erData);
+      } else if (project.diagram_type !== "er") {
+        useErDiagramStore.getState().reset();
       }
     } catch (err) {
       console.error("Failed to load project:", err);
@@ -309,19 +318,25 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
 
     try {
       if (currentProjectId) {
+        const erData = useErDiagramStore.getState().getAstData();
+        
         await updateProject(currentProjectId, {
           title: projectTitle,
           description: projectDescription,
-          ast_data: { nodes, edges },
+          ast_data: { nodes: get().nodes, edges: get().edges },
+          dfd_level: get().dfdLevel,
+          er_data: erData,
           status: targetStatus,
         });
         set({ projectStatus: targetStatus });
       } else {
+        const erData = diagramType === "er" ? useErDiagramStore.getState().getAstData() : undefined;
         const newProject = await createProject(userId, {
           title: projectTitle,
           description: projectDescription,
           diagram_type: diagramType,
           ast_data: { nodes, edges },
+          er_data: erData,
           status: targetStatus || "active",
         });
         set({ currentProjectId: newProject.id, projectStatus: newProject.status });
