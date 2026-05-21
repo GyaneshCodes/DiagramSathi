@@ -175,6 +175,47 @@ export const RightPropertiesPanel = () => {
               </div>
             </div>
 
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-[10px] font-bold text-neutral/40 uppercase tracking-wider flex items-center gap-1">
+                  <Palette size={12} /> Node Fill
+                </label>
+                <label className="flex items-center gap-1 text-[10px] text-neutral/60 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedNode.fillColor === "transparent"}
+                    onChange={(e) =>
+                      updateNode(selectedNode.id, {
+                        fillColor: e.target.checked ? "transparent" : "#1e293b",
+                      })
+                    }
+                    className="rounded border-border/80 text-primary focus:ring-0 cursor-pointer w-3 h-3"
+                  />
+                  Transparent
+                </label>
+              </div>
+              {selectedNode.fillColor !== "transparent" && (
+                <div className="flex items-center gap-2 animate-in fade-in duration-200">
+                  <input
+                    type="color"
+                    value={selectedNode.fillColor || "#1e293b"}
+                    onChange={(e) =>
+                      updateNode(selectedNode.id, { fillColor: e.target.value })
+                    }
+                    className="w-8 h-8 rounded border border-border/80 bg-bg p-0.5 cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    value={selectedNode.fillColor || "#1e293b"}
+                    onChange={(e) =>
+                      updateNode(selectedNode.id, { fillColor: e.target.value })
+                    }
+                    className="flex-1 text-[10px] font-mono bg-bg border border-border/80 rounded p-1.5 text-neutral outline-none focus:border-primary uppercase"
+                  />
+                </div>
+              )}
+            </div>
+
             <div className="pt-2">
               <label className="text-[10px] font-bold text-neutral/40 uppercase tracking-wider mb-1.5 block">
                 Metadata

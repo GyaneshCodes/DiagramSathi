@@ -15,6 +15,7 @@ export interface DfdNode {
   height?: number;
   parentId?: string;
   color?: string;
+  fillColor?: string;
 }
 
 export interface DfdEdge {
@@ -188,7 +189,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   },
 
   applyAIGeneratedDiagram: async (newNodes, newEdges) => {
-    const { nodes: existingNodes, edges: existingEdges, dfdLevel, diagramType } = get();
+    const { nodes: existingNodes, edges: existingEdges, dfdLevel, direction } = get();
 
     set({ isLayouting: true });
 
@@ -198,7 +199,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       const { nodes: layoutedNewNodes, edges: layoutedNewEdges } = await applyElkLayout(
         measuredNewNodes,
         newEdges,
-        diagramType === "dfd" ? "LR" : "TB",
+        direction,
         dfdLevel
       );
 
@@ -280,6 +281,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
     try {
       const project = await getProject(projectId);
       const ast = project.ast_data as { nodes?: any[]; edges?: any[] } | null;
+      const canvasSettings = project.canvas_settings as { direction?: "TB" | "LR" } | null;
 
       set({
         currentProjectId: projectId,
@@ -292,23 +294,29 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
         dfdLevel: project.dfd_level || 0,
         projectStatus: project.status,
         mermaidCode: project.mermaid_code || "",
+        direction: canvasSettings?.direction || "LR",
         layoutVersion: (get().layoutVersion + 1) % 1000,
       });
 
-      // Hydrate ER store for ER diagrams (only if er_data has actual schemas)
-      const erData = project.er_data as { schemas?: any[]; relationships?: any[] } | null;
-      if (erData && erData.schemas && erData.schemas.length > 0) {
-        useErDiagramStore.getState().loadFromAstData(erData);
-      } else if (project.diagram_type !== "er") {
+      // Hydrate ER store for ER diagrams
+      if (project.diagram_type === "er") {
+        const erData = project.er_data as { schemas?: any[]; relationships?: any[] } | null;
+        if (erData && erData.schemas && erData.schemas.length > 0) {
+          useErDiagramStore.getState().loadFromAstData(erData);
+        } else {
+          useErDiagramStore.getState().reset();
+        }
+      } else {
         useErDiagramStore.getState().reset();
       }
     } catch (err) {
       console.error("Failed to load project:", err);
+      throw err;
     }
   },
 
   saveProject: async (userId, isDraft) => {
-    const { currentProjectId, nodes, edges, projectTitle, projectDescription, diagramType, projectStatus } = get();
+    const { currentProjectId, nodes, edges, projectTitle, projectDescription, diagramType, projectStatus, direction } = get();
     
     // Determine target status
     let targetStatus = projectStatus;
@@ -323,9 +331,11 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
         await updateProject(currentProjectId, {
           title: projectTitle,
           description: projectDescription,
+          diagram_type: diagramType,
           ast_data: { nodes: get().nodes, edges: get().edges },
           dfd_level: get().dfdLevel,
           er_data: erData,
+          canvas_settings: { direction },
           status: targetStatus,
         });
         set({ projectStatus: targetStatus });
@@ -337,6 +347,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
           diagram_type: diagramType,
           ast_data: { nodes, edges },
           er_data: erData,
+          canvas_settings: { direction },
           status: targetStatus || "active",
         });
         set({ currentProjectId: newProject.id, projectStatus: newProject.status });
@@ -347,7 +358,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   },
 
   applyLayoutAsync: async () => {
-    const { nodes, edges, dfdLevel } = get();
+    const { nodes, edges, dfdLevel, direction } = get();
     if (nodes.length === 0) return;
 
     set({ isLayouting: true });
@@ -360,7 +371,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       const { nodes: layoutedNodes, edges: layoutedEdges } = await applyElkLayout(
         measuredNodes,
         edges,
-        "LR",
+        direction,
         dfdLevel
       );
 
@@ -380,16 +391,21 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   },
 
   forceLayoutRefresh: () => {
-    get().applyLayoutAsync();
+    if (get().diagramType === "er") {
+      useErDiagramStore.getState().applyLayout();
+    } else {
+      get().applyLayoutAsync();
+    }
   },
 
   saveLayoutToSupabase: async () => {
-    const { currentProjectId, nodes, edges } = get();
+    const { currentProjectId, nodes, edges, direction } = get();
     if (!currentProjectId) return;
 
     try {
       await updateProject(currentProjectId, {
         ast_data: { nodes, edges },
+        canvas_settings: { direction },
       });
     } catch (err) {
       console.error("Failed to save layout state", err);

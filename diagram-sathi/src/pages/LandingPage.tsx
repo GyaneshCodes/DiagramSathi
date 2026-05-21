@@ -117,7 +117,7 @@ export function LandingPage() {
 
   return (
     <LazyMotion features={domAnimation}>
-      <div 
+      <div
         data-theme="dark"
         className="relative w-screen min-h-screen overflow-x-hidden bg-bg text-neutral font-sans selection:bg-primary/30"
       >
@@ -209,8 +209,8 @@ export function LandingPage() {
                 </span>
               </h1>
               <p className="mt-5 text-sm md:text-base text-neutral/50 leading-relaxed max-w-md font-light">
-                Build clean, intuitive DFD and ER diagrams, without losing
-                control over your architecture.
+                Build clean, intuitive Flowchart, DFD and ER diagrams, without
+                losing control over your architecture.
               </p>
               <Link
                 to="/signin"

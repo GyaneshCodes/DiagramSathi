@@ -76,7 +76,7 @@ export async function createProject(
 /** Update project fields (used for auto-save) */
 export async function updateProject(
   projectId: string,
-  fields: Partial<Pick<Project, "title" | "description" | "mermaid_code" | "ast_data" | "canvas_settings" | "status" | "er_data" | "dfd_level">>,
+  fields: Partial<Pick<Project, "title" | "description" | "diagram_type" | "mermaid_code" | "ast_data" | "canvas_settings" | "status" | "er_data" | "dfd_level">>,
 ) {
   const { data, error } = await supabase
     .from("projects")

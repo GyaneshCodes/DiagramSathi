@@ -16,6 +16,7 @@ const SMART_CHIPS = [
 const DIAGRAM_TYPES = [
   { label: "Flowchart", value: "flowchart" as const },
   { label: "DFD (Data Flow Diagram)", value: "dfd" as const },
+  { label: "ERD (Entity Relationship)", value: "er" as const },
 ];
 
 function getGreeting(): string {
@@ -29,7 +30,7 @@ export function HeroSection() {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const [prompt, setPrompt] = useState("");
-  const [selectedType, setSelectedType] = useState<"flowchart" | "dfd">(
+  const [selectedType, setSelectedType] = useState<"flowchart" | "dfd" | "er">(
     "flowchart",
   );
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);

@@ -148,14 +148,19 @@ function calcContainerNode(schemaNodes: DfdNode[]): DfdNode | null {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 
   for (const n of schemaNodes) {
-    const x = n.position?.x ?? 0;
-    const y = n.position?.y ?? 0;
-    const w = n.width ?? SCHEMA_WIDTH;
-    const h = n.height ?? 76;
+    const x = (typeof n.position?.x === 'number' && !isNaN(n.position.x)) ? n.position.x : 0;
+    const y = (typeof n.position?.y === 'number' && !isNaN(n.position.y)) ? n.position.y : 0;
+    const w = (typeof n.width === 'number' && !isNaN(n.width)) ? n.width : SCHEMA_WIDTH;
+    const h = (typeof n.height === 'number' && !isNaN(n.height)) ? n.height : 76;
     minX = Math.min(minX, x);
     minY = Math.min(minY, y);
     maxX = Math.max(maxX, x + w);
     maxY = Math.max(maxY, y + h);
+  }
+
+  // Fallback if all nodes were invalid
+  if (minX === Infinity) {
+    minX = 0; minY = 0; maxX = SCHEMA_WIDTH; maxY = 76;
   }
 
   return {
@@ -375,11 +380,20 @@ export const useErDiagramStore = create<ErDiagramState>((set, get) => ({
       const nodeId = `er_${s.id}`;
       // Use customNodes position if provided (e.g. from layout)
       const layoutNode = customNodes?.find(cn => cn.id === nodeId);
+      const mappedPos = posMap.get(nodeId);
+      
+      let safePos = { x: 50 + i * 350, y: 100 };
+      if (layoutNode?.position && typeof layoutNode.position.x === 'number' && !isNaN(layoutNode.position.x) && typeof layoutNode.position.y === 'number' && !isNaN(layoutNode.position.y)) {
+        safePos = layoutNode.position;
+      } else if (mappedPos && typeof mappedPos.x === 'number' && !isNaN(mappedPos.x) && typeof mappedPos.y === 'number' && !isNaN(mappedPos.y)) {
+        safePos = mappedPos;
+      }
+
       return {
         id: nodeId,
         label: s.name,
         type: "er-schema",
-        position: layoutNode?.position || posMap.get(nodeId) || { x: 50 + i * 350, y: 100 },
+        position: safePos,
         width: SCHEMA_WIDTH,
         height: calcSchemaHeight(s.columns.length),
         color: ER_COLORS[s.color] || ER_COLORS.blue,
@@ -412,8 +426,7 @@ export const useErDiagramStore = create<ErDiagramState>((set, get) => ({
     get().syncSchemasToCode();
     
     // Apply layout automatically
-    const mainStore = useDiagramStore.getState();
-    const { nodes } = await layoutErDiagram(schemas, relationships, mainStore.direction);
+    const { nodes } = await layoutErDiagram(schemas, relationships, "LR");
     get().syncToMainStore(nodes);
   },
 
@@ -421,8 +434,7 @@ export const useErDiagramStore = create<ErDiagramState>((set, get) => ({
 
   applyLayout: async () => {
     const { schemas, relationships } = get();
-    const mainStore = useDiagramStore.getState();
-    const { nodes } = await layoutErDiagram(schemas, relationships, mainStore.direction);
+    const { nodes } = await layoutErDiagram(schemas, relationships, "LR");
     get().syncToMainStore(nodes);
   },
 

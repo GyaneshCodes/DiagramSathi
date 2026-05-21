@@ -3,7 +3,6 @@ import {
   ReactFlow,
   ReactFlowProvider,
   Controls,
-  Background,
   useNodesState,
   useEdgesState,
   useReactFlow,
@@ -260,13 +259,18 @@ const PaneCenterCanvasInner = () => {
         const dims = isErContainer
           ? { width: n.width || 400, height: n.height || 200 }
           : getNodeDimensions(n.type, n.width, n.height);
+
+        // Sanitize position to prevent React Flow crashes from null/NaN coordinates
+        const posX = (typeof n.position?.x === 'number' && !isNaN(n.position.x)) ? n.position.x : (50 + index * 200);
+        const posY = (typeof n.position?.y === 'number' && !isNaN(n.position.y)) ? n.position.y : 100;
+
         return {
           id: n.id,
           type: n.type,
-          position: n.position || { x: 50 + index * 200, y: 100 },
+          position: { x: posX, y: posY },
           width: dims.width,
           height: dims.height,
-          data: { label: n.label, color: n.color },
+          data: { label: n.label, color: n.color, fillColor: n.fillColor },
           draggable: !isErContainer,
           selectable: !isErContainer,
           style: isErContainer ? { width: dims.width, height: dims.height, zIndex: -1 } : undefined,
@@ -559,7 +563,6 @@ const PaneCenterCanvasInner = () => {
             },
           }}
         >
-          {!isExporting && <Background color="var(--canvas-dot)" gap={16} />}
           {!isExporting && (
             <MiniMap
               className="bg-panel! border-border/80! rounded-md shadow-lg"

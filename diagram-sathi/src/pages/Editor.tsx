@@ -1,11 +1,11 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Navbar } from "../components/Navbar";
 import { useAuth } from "../context/AuthContext";
 import { LeftLayersPanel } from "../components/ui/LeftLayersPanel";
 import { RightPropertiesPanel } from "../components/ui/RightPropertiesPanel";
 import { PaneCenterCanvas } from "../components/PanelCenterCanvas";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { useDiagramStore } from "../store/useDiagramStore";
 
 export function Editor() {
@@ -26,21 +26,55 @@ export function Editor() {
     nodes,
     edges,
     projectTitle,
+    diagramType,
     setCurrentProjectId,
+    forceLayoutRefresh,
   } = useDiagramStore();
 
+  const [isProjectLoading, setIsProjectLoading] = useState(false);
+  const [projectLoadError, setProjectLoadError] = useState<string | null>(null);
   const isInitialMount = useRef(true);
+  const hasLoadedProject = useRef(false);
 
   // Hydrate Project from URL ID
   useEffect(() => {
-    if (id) {
-      loadProject(id).catch(err => {
-        console.error("Failed to load project from URL ID", err);
-      });
-    } else {
+    if (!id) {
       setCurrentProjectId(null);
+      return;
     }
-  }, [id, loadProject, setCurrentProjectId]);
+
+    // Prevent re-loading if we already loaded this project ID
+    if (hasLoadedProject.current) {
+      return;
+    }
+
+    let cancelled = false;
+    setIsProjectLoading(true);
+    setProjectLoadError(null);
+
+    loadProject(id)
+      .then(() => {
+        if (cancelled) return;
+        hasLoadedProject.current = true;
+        setIsProjectLoading(false);
+        
+        // Force canvas to re-render by triggering layout refresh
+        // This ensures the canvas picks up the newly loaded nodes/edges
+        setTimeout(() => {
+          forceLayoutRefresh();
+        }, 100);
+      })
+      .catch(err => {
+        if (cancelled) return;
+        console.error("Failed to load project from URL ID", err);
+        setIsProjectLoading(false);
+        setProjectLoadError(err.message || "Failed to load project");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, loadProject, setCurrentProjectId, forceLayoutRefresh]);
 
   const currentProjectId = useDiagramStore(state => state.currentProjectId);
   
@@ -58,7 +92,7 @@ export function Editor() {
       return;
     }
 
-    if (!userId) return;
+    if (!userId || isProjectLoading || (id && !hasLoadedProject.current)) return;
 
     const timer = setTimeout(() => {
       // Auto-save logic
@@ -68,7 +102,7 @@ export function Editor() {
     }, 2000); // 2 second debounce
 
     return () => clearTimeout(timer);
-  }, [nodes, edges, projectTitle, saveProject, userId]);
+  }, [nodes, edges, projectTitle, diagramType, saveProject, userId, isProjectLoading, id]);
 
   // Keyboard Shortcuts
   useEffect(() => {
@@ -89,6 +123,38 @@ export function Editor() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [setActiveTool]);
+
+  // Loading state while project is being fetched
+  if (isProjectLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen w-screen bg-[#0A0A0A]">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-10 h-10 text-primary animate-spin" />
+          <span className="text-neutral/40 text-xs font-mono tracking-widest uppercase">
+            Loading Diagram...
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state if project failed to load
+  if (projectLoadError) {
+    return (
+      <div className="flex items-center justify-center h-screen w-screen bg-[#0A0A0A]">
+        <div className="flex flex-col items-center gap-4 max-w-md text-center">
+          <div className="text-red-400 text-lg font-semibold">Failed to Load</div>
+          <p className="text-neutral/60 text-sm">{projectLoadError}</p>
+          <button
+            onClick={() => navigate("/projects")}
+            className="px-4 py-2 bg-primary/20 text-primary rounded-lg hover:bg-primary/30 transition-colors"
+          >
+            Back to Projects
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

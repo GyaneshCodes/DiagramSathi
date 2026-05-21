@@ -8,7 +8,6 @@ import {
   type ErDataType,
   type ErRelationshipType,
 } from "../../store/useErDiagramStore";
-import { useDiagramStore } from "../../store/useDiagramStore";
 import {
   Type,
   Palette,
@@ -18,7 +17,6 @@ import {
   ChevronDown,
   ChevronRight,
   Link2,
-  Map,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -47,8 +45,6 @@ export const ErRightPanel = () => {
     updateRelationship,
   } = useErDiagramStore();
 
-  const { direction, setDirection } = useDiagramStore();
-
   const selectedSchema = schemas.find((s) => s.id === selectedSchemaId);
   const selectedRelationship = relationships.find(
     (r) => r.id === selectedRelationshipId
@@ -69,19 +65,6 @@ export const ErRightPanel = () => {
   if (!selectedSchema && !selectedRelationship) {
     return (
       <div className="flex flex-col gap-4 animate-in fade-in duration-200">
-        <div>
-          <label className="text-[10px] font-bold text-neutral/40 uppercase tracking-wider mb-2 flex items-center gap-1">
-            <Map size={12} /> Canvas Direction
-          </label>
-          <select
-            value={direction}
-            onChange={(e) => setDirection(e.target.value as "TB" | "LR")}
-            className="w-full text-xs bg-bg border border-border/80 rounded block p-2 text-neutral outline-none focus:border-primary"
-          >
-            <option value="TB">Top-Down (TB)</option>
-            <option value="LR">Left-Right (LR)</option>
-          </select>
-        </div>
         <div className="bg-bg/40 p-3 rounded-lg border border-border/40">
           <p className="text-[10px] text-neutral/50 italic leading-relaxed">
             Select a schema or relationship on the canvas to edit its properties.

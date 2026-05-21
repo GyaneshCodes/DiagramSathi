@@ -6,6 +6,31 @@ import {
   type Node,
 } from "@xyflow/react";
 import { useDiagramStore } from "../../store/useDiagramStore";
+import { useTheme } from "../../context/ThemeContext";
+
+// Helper to determine text color (light or dark) based on background hex color
+export const getContrastTextColor = (hexColor: string, appTheme: "dark" | "light" = "dark") => {
+  if (!hexColor || hexColor === "transparent") {
+    return appTheme === "light" ? "text-slate-900" : "text-slate-200";
+  }
+
+  const hex = hexColor.replace("#", "");
+  let r = 0, g = 0, b = 0;
+  if (hex.length === 3) {
+    r = parseInt(hex.substring(0, 1) + hex.substring(0, 1), 16);
+    g = parseInt(hex.substring(1, 2) + hex.substring(1, 2), 16);
+    b = parseInt(hex.substring(2, 3) + hex.substring(2, 3), 16);
+  } else if (hex.length === 6) {
+    r = parseInt(hex.substring(0, 2), 16);
+    g = parseInt(hex.substring(2, 4), 16);
+    b = parseInt(hex.substring(4, 6), 16);
+  } else {
+    return appTheme === "light" ? "text-slate-900" : "text-slate-200";
+  }
+
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.5 ? "text-slate-900" : "text-slate-200";
+};
 
 const handleClass =
   "!w-2 !h-2 !bg-[#6366f1] !border-2 !border-slate-800 !opacity-0 group-hover:!opacity-100 transition-opacity";
@@ -93,6 +118,9 @@ const svgPathClasses =
 export const RectangleNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
   const color = (data.color as string) || "#6366f1";
+  const fillColor = (data.fillColor as string) || "#1e293b";
+  const { theme } = useTheme();
+  const textColorClass = getContrastTextColor(fillColor, theme);
 
   return (
     <div
@@ -121,13 +149,14 @@ export const RectangleNode = ({ data, id, selected }: NodeProps<Node>) => {
           width="96"
           height="96"
           rx="4"
-          fill="#1e293b"
+          fill={fillColor}
+          fillOpacity={fillColor === "transparent" ? 0 : 1}
           stroke={color}
           strokeWidth="2"
           className={svgPathClasses}
         />
       </svg>
-      <div className="px-6 py-4 text-sm font-bold text-slate-200 z-10 whitespace-normal relative text-center pointer-events-none max-w-[260px]">
+      <div className={`px-6 py-4 text-sm font-bold ${textColorClass} z-10 whitespace-normal relative text-center pointer-events-none max-w-[260px]`}>
         {String(data.label)}
       </div>
       {renderHandles()}
@@ -138,6 +167,9 @@ export const RectangleNode = ({ data, id, selected }: NodeProps<Node>) => {
 export const SquareNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
   const color = (data.color as string) || "#6366f1";
+  const fillColor = (data.fillColor as string) || "#1e293b";
+  const { theme } = useTheme();
+  const textColorClass = getContrastTextColor(fillColor, theme);
 
   return (
     <div
@@ -168,13 +200,14 @@ export const SquareNode = ({ data, id, selected }: NodeProps<Node>) => {
           width="96"
           height="96"
           rx="4"
-          fill="#1e293b"
+          fill={fillColor}
+          fillOpacity={fillColor === "transparent" ? 0 : 1}
           stroke={color}
           strokeWidth="2"
           className={svgPathClasses}
         />
       </svg>
-      <div className="px-6 py-6 text-sm font-bold text-slate-200 whitespace-normal z-10 text-center pointer-events-none max-w-[240px]">
+      <div className={`px-6 py-6 text-sm font-bold ${textColorClass} whitespace-normal z-10 text-center pointer-events-none max-w-[240px]`}>
         {String(data.label)}
       </div>
       {renderHandles()}
@@ -185,6 +218,9 @@ export const SquareNode = ({ data, id, selected }: NodeProps<Node>) => {
 export const CircleNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
   const color = (data.color as string) || "#6366f1";
+  const fillColor = (data.fillColor as string) || "#1e293b";
+  const { theme } = useTheme();
+  const textColorClass = getContrastTextColor(fillColor, theme);
 
   return (
     <div
@@ -213,13 +249,14 @@ export const CircleNode = ({ data, id, selected }: NodeProps<Node>) => {
           cx="50"
           cy="50"
           r="48"
-          fill="#1e293b"
+          fill={fillColor}
+          fillOpacity={fillColor === "transparent" ? 0 : 1}
           stroke={color}
           strokeWidth="2"
           className={svgPathClasses}
         />
       </svg>
-      <div className="px-8 py-8 text-sm font-bold text-slate-200 whitespace-normal z-10 text-center pointer-events-none max-w-[240px]">
+      <div className={`px-8 py-8 text-sm font-bold ${textColorClass} whitespace-normal z-10 text-center pointer-events-none max-w-[240px]`}>
         {String(data.label)}
       </div>
       {renderHandles()}
@@ -230,6 +267,9 @@ export const CircleNode = ({ data, id, selected }: NodeProps<Node>) => {
 export const DiamondNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
   const color = (data.color as string) || "#6366f1";
+  const fillColor = (data.fillColor as string) || "#1e293b";
+  const { theme } = useTheme();
+  const textColorClass = getContrastTextColor(fillColor, theme);
 
   return (
     <div
@@ -254,13 +294,14 @@ export const DiamondNode = ({ data, id, selected }: NodeProps<Node>) => {
       >
         <polygon
           points="50,2 98,50 50,98 2,50"
-          fill="#1e293b"
+          fill={fillColor}
+          fillOpacity={fillColor === "transparent" ? 0 : 1}
           stroke={color}
           strokeWidth="2"
           className={svgPathClasses}
         />
       </svg>
-      <div className="px-12 py-12 text-sm font-bold text-slate-200 whitespace-normal max-w-[85%] z-10 text-center pointer-events-none leading-tight">
+      <div className={`px-12 py-12 text-sm font-bold ${textColorClass} whitespace-normal max-w-[85%] z-10 text-center pointer-events-none leading-tight`}>
         {String(data.label)}
       </div>
       {renderHandles({ top: "2%", bottom: "2%", left: "2%", right: "2%" })}
@@ -271,6 +312,9 @@ export const DiamondNode = ({ data, id, selected }: NodeProps<Node>) => {
 export const ParallelogramNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
   const color = (data.color as string) || "#6366f1";
+  const fillColor = (data.fillColor as string) || "#1e293b";
+  const { theme } = useTheme();
+  const textColorClass = getContrastTextColor(fillColor, theme);
 
   return (
     <div
@@ -295,13 +339,14 @@ export const ParallelogramNode = ({ data, id, selected }: NodeProps<Node>) => {
       >
         <polygon
           points="20,2 98,2 80,98 2,98"
-          fill="#1e293b"
+          fill={fillColor}
+          fillOpacity={fillColor === "transparent" ? 0 : 1}
           stroke={color}
           strokeWidth="2"
           className={svgPathClasses}
         />
       </svg>
-      <div className="px-10 py-4 text-sm font-bold text-slate-200 whitespace-normal max-w-[85%] z-10 text-center pointer-events-none">
+      <div className={`px-10 py-4 text-sm font-bold ${textColorClass} whitespace-normal max-w-[85%] z-10 text-center pointer-events-none`}>
         {String(data.label)}
       </div>
       {renderHandles({ left: "11%", right: "11%" })}
@@ -312,6 +357,9 @@ export const ParallelogramNode = ({ data, id, selected }: NodeProps<Node>) => {
 export const HexagonNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
   const color = (data.color as string) || "#6366f1";
+  const fillColor = (data.fillColor as string) || "#1e293b";
+  const { theme } = useTheme();
+  const textColorClass = getContrastTextColor(fillColor, theme);
 
   return (
     <div
@@ -336,13 +384,14 @@ export const HexagonNode = ({ data, id, selected }: NodeProps<Node>) => {
       >
         <polygon
           points="15,2 85,2 98,50 85,98 15,98 2,50"
-          fill="#1e293b"
+          fill={fillColor}
+          fillOpacity={fillColor === "transparent" ? 0 : 1}
           stroke={color}
           strokeWidth="2"
           className={svgPathClasses}
         />
       </svg>
-      <div className="px-12 py-4 text-sm font-bold text-slate-200 whitespace-normal max-w-[85%] z-10 text-center pointer-events-none">
+      <div className={`px-12 py-4 text-sm font-bold ${textColorClass} whitespace-normal max-w-[85%] z-10 text-center pointer-events-none`}>
         {String(data.label)}
       </div>
       {renderHandles({ left: "2%", right: "2%" })}
@@ -353,6 +402,9 @@ export const HexagonNode = ({ data, id, selected }: NodeProps<Node>) => {
 export const CylinderNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
   const color = (data.color as string) || "#6366f1";
+  const fillColor = (data.fillColor as string) || "#1e293b";
+  const { theme } = useTheme();
+  const textColorClass = getContrastTextColor(fillColor, theme);
 
   return (
     <div
@@ -377,20 +429,22 @@ export const CylinderNode = ({ data, id, selected }: NodeProps<Node>) => {
       >
         <path
           d="M 5,15 V 85 A 45,10 0 0 0 95,85 V 15 A 45,10 0 0 1 5,15 Z"
-          fill="#1e293b"
+          fill={fillColor}
+          fillOpacity={fillColor === "transparent" ? 0 : 1}
           stroke={color}
           strokeWidth="2"
           className="opacity-90 transition-all group-hover:shadow-[0_0_15px_rgba(99,102,241,0.2)]"
         />
         <path
           d="M 5,15 A 45,10 0 1 1 95,15 A 45,10 0 1 1 5,15 Z"
-          fill="#1e293b"
+          fill={fillColor}
+          fillOpacity={fillColor === "transparent" ? 0 : 1}
           stroke={color}
           strokeWidth="2"
           className="opacity-90 transition-all"
         />
       </svg>
-      <div className="px-8 py-6 mt-2 text-sm font-bold text-slate-200 whitespace-normal max-w-[85%] z-10 text-center pointer-events-none">
+      <div className={`px-8 py-6 mt-2 text-sm font-bold ${textColorClass} whitespace-normal max-w-[85%] z-10 text-center pointer-events-none`}>
         {String(data.label)}
       </div>
       {renderHandles({ top: "15%", bottom: "5%", left: "5%", right: "5%" })}
