@@ -16,7 +16,7 @@ export const TopToolbar = () => {
   ] as const;
 
   return (
-    <div className="absolute top-6 left-1/2 -translate-x-1/2 flex items-center bg-[#2b2d31]/95 backdrop-blur-xl border border-slate-700/60 rounded-xl p-1.5 gap-1.5 shadow-2xl z-50">
+    <div className="absolute top-6 left-1/2 -translate-x-1/2 flex items-center bg-panel/95 backdrop-blur-xl border border-border/60 rounded-xl p-1.5 gap-1.5 shadow-2xl z-50 transition-colors duration-300">
       <div className="flex items-center gap-1.5">
         {tools.map((t) => (
           <button
@@ -26,7 +26,7 @@ export const TopToolbar = () => {
             className={`w-10 h-10 rounded-lg cursor-pointer transition-all duration-200 flex items-center justify-center ${
               activeTool === t.id
                 ? "bg-[#0b84ff] text-white shadow-md shadow-[#0b84ff]/25"
-                : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"
+                : "text-neutral/50 hover:text-neutral hover:bg-neutral/10"
             }`}
           >
             <t.icon size={20} strokeWidth={activeTool === t.id ? 2.5 : 2} />
@@ -34,12 +34,12 @@ export const TopToolbar = () => {
         ))}
       </div>
 
-      <div className="w-px h-6 bg-slate-700 mx-1"></div>
+      <div className="w-px h-6 bg-border mx-1"></div>
 
       <button
         onClick={forceLayoutRefresh}
         title="Reset Layout (Auto-align)"
-        className="w-10 h-10 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 rounded-lg cursor-pointer transition-all duration-200 flex items-center justify-center group"
+        className="w-10 h-10 text-neutral/50 hover:text-neutral hover:bg-neutral/10 rounded-lg cursor-pointer transition-all duration-200 flex items-center justify-center group"
       >
         <RefreshCw size={20} strokeWidth={2} className="group-hover:rotate-180 transition-transform duration-500 ease-in-out" />
       </button>

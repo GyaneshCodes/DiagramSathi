@@ -94,6 +94,44 @@ export function LandingPage() {
     return () => obs.disconnect();
   }, []);
 
+  useEffect(() => {
+    const root = window.document.documentElement;
+    const prevTheme = root.getAttribute("data-theme") || "dark";
+
+    const forceDark = () => {
+      if (root.getAttribute("data-theme") !== "dark" || !root.classList.contains("dark")) {
+        root.classList.remove("light");
+        root.classList.add("dark");
+        root.setAttribute("data-theme", "dark");
+      }
+    };
+
+    // Force immediately
+    forceDark();
+
+    // Observe changes to the html attributes to prevent context overrides
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.attributeName === "class" || mutation.attributeName === "data-theme") {
+          forceDark();
+        }
+      }
+    });
+
+    observer.observe(root, {
+      attributes: true,
+      attributeFilter: ["class", "data-theme"],
+    });
+
+    return () => {
+      observer.disconnect();
+      // Restore previous theme on unmount
+      root.classList.remove("light", "dark");
+      root.classList.add(prevTheme);
+      root.setAttribute("data-theme", prevTheme);
+    };
+  }, []);
+
   const onSplineLoad = useCallback(() => {
     setSplineLoaded(true);
   }, []);
