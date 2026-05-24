@@ -144,12 +144,32 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   setReactFlowInstance: (instance) => set({ reactFlowInstance: instance }),
 
   addNode: (node) => {
+    const { nodes } = get();
+    let maxX = 0;
+    let maxY = 100;
+
+    if (nodes.length > 0) {
+      nodes.forEach((n) => {
+        if (n.type === "er-container") return;
+        const x = n.position?.x || 0;
+        const w = n.width || 180;
+        const nodeRight = x + w;
+        if (nodeRight > maxX) {
+          maxX = nodeRight;
+          maxY = n.position?.y ?? 100;
+        }
+      });
+    }
+
     const id = `node_${Math.random().toString(36).substr(2, 9)}`;
     const newNode = { 
       id, 
       label: "New Node", 
       type: "rectangle",
-      position: { x: Math.random() * 100, y: Math.random() * 100 },
+      position: { 
+        x: nodes.length > 0 ? maxX + 200 : 100, 
+        y: maxY 
+      },
       ...node 
     } as DfdNode;
     set((state) => ({ nodes: [...state.nodes, newNode] }));

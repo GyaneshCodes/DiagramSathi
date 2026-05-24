@@ -171,22 +171,86 @@ const FloatingSmoothStepEdge = ({
         <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={style} />
         {label && (
           <EdgeLabelRenderer>
-            <div
-              style={{
-                position: "absolute",
-                transform: `translate(-50%, -100%) translate(${labelX}px,${labelY - 4}px)`,
-                padding: "4px 4px",
-                borderRadius: 4,
-                fontSize: 12,
-                fontWeight: 500,
-                background: "var(--edge-label-bg)",
-                color: "var(--edge-label-text)",
-                pointerEvents: "all",
-              }}
-              className="nodrag nopan"
-            >
-              {label}
-            </div>
+            {(() => {
+              // --- Dynamic Geometry-Aware Label Translating ---
+              const EDGE_SPACING = 18;
+              const offsetAmount =
+                pairTotal <= 1 ? 0 : (pairIndex - (pairTotal - 1) / 2) * EDGE_SPACING;
+
+              // ========================================================
+              // TWEAKABLE CONFIGURATION PARAMETERS
+              // Change these values to adjust the label distances from the lines
+              // ========================================================
+              const VERTICAL_EDGE_HORIZONTAL_OFFSET = 45; // Shift amount to the left/right of vertical lines (in pixels)
+              const HORIZONTAL_EDGE_TOP_OFFSET = -8;      // Spacing above the top horizontal line (in pixels)
+              const HORIZONTAL_EDGE_BOTTOM_OFFSET = 8;    // Spacing below the bottom horizontal line (in pixels)
+
+              let translateXPercent = -50;
+              let translateYPercent = -100;
+              let additionalX = 0;
+              let additionalY = -4;
+
+              const isVertical = sourcePos === Position.Top || sourcePos === Position.Bottom;
+
+              if (isVertical) {
+                if (pairTotal > 1) {
+                  if (offsetAmount < 0) {
+                    // Left-shifted edge
+                    additionalX = -VERTICAL_EDGE_HORIZONTAL_OFFSET;
+                    translateYPercent = -50;
+                    additionalY = 0;
+                  } else if (offsetAmount > 0) {
+                    // Right-shifted edge
+                    additionalX = VERTICAL_EDGE_HORIZONTAL_OFFSET;
+                    translateYPercent = -50;
+                    additionalY = 0;
+                  } else {
+                    // Center edge (in 3-edge layout)
+                    additionalX = 0;
+                    translateYPercent = -50;
+                    additionalY = 0;
+                  }
+                }
+              } else {
+                // Horizontal edge
+                if (pairTotal > 1) {
+                  if (offsetAmount < 0) {
+                    // Top-shifted edge
+                    translateYPercent = -100;
+                    additionalY = HORIZONTAL_EDGE_TOP_OFFSET;
+                  } else if (offsetAmount > 0) {
+                    // Bottom-shifted edge
+                    translateYPercent = 0;
+                    additionalY = HORIZONTAL_EDGE_BOTTOM_OFFSET;
+                  } else {
+                    // Center edge (in 3-edge layout)
+                    translateYPercent = -50;
+                    additionalY = 0;
+                  }
+                }
+              }
+
+              const transformStyle = `translate(${translateXPercent}%, ${translateYPercent}%) translate(${labelX + additionalX}px, ${labelY + additionalY}px)`;
+
+              return (
+                <div
+                  style={{
+                    position: "absolute",
+                    transform: transformStyle,
+                    padding: "4px 4px",
+                    borderRadius: 4,
+                    fontSize: 12,
+                    fontWeight: 500,
+                    background: "var(--edge-label-bg)",
+                    color: "var(--edge-label-text)",
+                    pointerEvents: "all",
+                  }}
+                  className="nodrag nopan"
+                >
+                  {label}
+                </div>
+              );
+            })()}
           </EdgeLabelRenderer>
         )}
       </>
@@ -278,16 +342,16 @@ const PaneCenterCanvasInner = () => {
         };
       });
 
-      // Group edges by source→target pair for parallel routing
+      // Group edges by source↔target pair (unordered) for parallel routing
       const pairCounts = new Map<string, number>();
       astEdges.forEach((e: DfdEdge) => {
-        const key = `${e.source}→${e.target}`;
+        const key = [e.source, e.target].sort().join(" - ");
         pairCounts.set(key, (pairCounts.get(key) ?? 0) + 1);
       });
       const pairSeen = new Map<string, number>();
 
       let rfEdges: Edge[] = astEdges.map((e: DfdEdge) => {
-        const key = `${e.source}→${e.target}`;
+        const key = [e.source, e.target].sort().join(" - ");
         const pairTotal = pairCounts.get(key) ?? 1;
         const pairIndex = pairSeen.get(key) ?? 0;
         pairSeen.set(key, pairIndex + 1);
@@ -353,17 +417,7 @@ const PaneCenterCanvasInner = () => {
         layoutAppliedRef.current = true;
 
         requestAnimationFrame(() => {
-          if (latestGeneratedNodeIds && latestGeneratedNodeIds.length > 0) {
-            fitView({
-              duration: 400,
-              padding: 0.15,
-              nodes: latestGeneratedNodeIds.map((id) => ({ id })),
-            });
-            // Clear to prevent repetitive panning
-            useDiagramStore.setState({ latestGeneratedNodeIds: [] });
-          } else {
-            fitView({ duration: 400, padding: 0.15 });
-          }
+          fitView({ duration: 400, padding: 0.15 });
         });
       }
 
@@ -460,14 +514,15 @@ const PaneCenterCanvasInner = () => {
     [removeEdge],
   );
 
-  // Recalculate ER container bounds when schema nodes are dragged
+  // Update node positions when dragged and auto-save layout
   const onNodeDragStop = useCallback(
     (_: React.MouseEvent, node: Node) => {
+      // ALWAYS update the position of the dragged node in the main store
+      useDiagramStore.getState().updateNode(node.id, {
+        position: node.position,
+      });
+
       if (diagramType === "er" && node.type === "er-schema") {
-        // Update position in main store
-        useDiagramStore.getState().updateNode(node.id, {
-          position: node.position,
-        });
         // Recalculate container bounds
         const allNodes = useDiagramStore.getState().nodes;
         const schemaDfdNodes = allNodes.filter((n) => n.type === "er-schema");
@@ -492,6 +547,9 @@ const PaneCenterCanvasInner = () => {
           });
         }
       }
+
+      // Auto-save the manual layout changes to Supabase immediately
+      useDiagramStore.getState().saveLayoutToSupabase();
     },
     [diagramType],
   );
@@ -551,7 +609,6 @@ const PaneCenterCanvasInner = () => {
           panActivationKeyCode="Space"
           selectionMode={SelectionMode.Partial}
           connectionMode={ConnectionMode.Loose}
-          fitView
           minZoom={0.1}
           maxZoom={4}
           proOptions={{ hideAttribution: true }}

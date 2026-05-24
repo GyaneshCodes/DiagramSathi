@@ -375,8 +375,24 @@ export const useErDiagramStore = create<ErDiagramState>((set, get) => ({
       if (n.position) posMap.set(n.id, n.position);
     });
 
+    // Track running maximum X to position new nodes sequentially in this batch
+    let runningMaxX = 0;
+    let runningMaxY = 100;
+
+    existingNodes.forEach((n) => {
+      if (n.type === "er-container") return;
+      const x = n.position?.x || 0;
+      const w = n.width || SCHEMA_WIDTH;
+      const nodeRight = x + w;
+      if (nodeRight > runningMaxX) {
+        runningMaxX = nodeRight;
+        runningMaxY = n.position?.y ?? 100;
+      }
+    });
+
     // Convert schemas → DfdNodes
-    const schemaNodes: DfdNode[] = schemas.map((s, i) => {
+    const schemaNodes: DfdNode[] = [];
+    schemas.forEach((s, i) => {
       const nodeId = `er_${s.id}`;
       // Use customNodes position if provided (e.g. from layout)
       const layoutNode = customNodes?.find(cn => cn.id === nodeId);
@@ -387,9 +403,22 @@ export const useErDiagramStore = create<ErDiagramState>((set, get) => ({
         safePos = layoutNode.position;
       } else if (mappedPos && typeof mappedPos.x === 'number' && !isNaN(mappedPos.x) && typeof mappedPos.y === 'number' && !isNaN(mappedPos.y)) {
         safePos = mappedPos;
+      } else {
+        // If it's a new schema node, place it 200px to the right of the rightmost existing node
+        safePos = {
+          x: runningMaxX > 0 ? runningMaxX + 200 : 50 + i * 350,
+          y: runningMaxY,
+        };
       }
 
-      return {
+      // Update the runningMaxX so subsequent new nodes in this batch are placed to its right
+      const rightBoundary = safePos.x + SCHEMA_WIDTH;
+      if (rightBoundary > runningMaxX) {
+        runningMaxX = rightBoundary;
+        runningMaxY = safePos.y;
+      }
+
+      schemaNodes.push({
         id: nodeId,
         label: s.name,
         type: "er-schema",
@@ -397,7 +426,7 @@ export const useErDiagramStore = create<ErDiagramState>((set, get) => ({
         width: SCHEMA_WIDTH,
         height: calcSchemaHeight(s.columns.length),
         color: ER_COLORS[s.color] || ER_COLORS.blue,
-      };
+      });
     });
 
     // Container node

@@ -35,79 +35,187 @@ export const getContrastTextColor = (hexColor: string, appTheme: "dark" | "light
 const handleClass =
   "!w-2 !h-2 !bg-[#6366f1] !border-2 !border-slate-800 !opacity-0 group-hover:!opacity-100 transition-opacity";
 
-const renderHandles = (offsets?: {
+export const renderHandles = (offsets?: {
   top?: string;
   bottom?: string;
   left?: string;
   right?: string;
 }) => (
   <>
+    {/* TOP handles */}
     <Handle
       type="source"
       position={Position.Top}
-      id="top-source"
+      id="top-source-0"
       className={handleClass}
-      style={offsets?.top ? { top: offsets.top, bottom: "auto" } : undefined}
+      style={{ left: "calc(50% - 18px)", top: offsets?.top ?? 0, bottom: "auto" }}
     />
     <Handle
       type="target"
       position={Position.Top}
-      id="top-target"
+      id="top-target-0"
       className={handleClass}
-      style={offsets?.top ? { top: offsets.top, bottom: "auto" } : undefined}
+      style={{ left: "calc(50% - 18px)", top: offsets?.top ?? 0, bottom: "auto" }}
+    />
+    <Handle
+      type="source"
+      position={Position.Top}
+      id="top-source-1"
+      className={handleClass}
+      style={{ left: "50%", top: offsets?.top ?? 0, bottom: "auto" }}
+    />
+    <Handle
+      type="target"
+      position={Position.Top}
+      id="top-target-1"
+      className={handleClass}
+      style={{ left: "50%", top: offsets?.top ?? 0, bottom: "auto" }}
+    />
+    <Handle
+      type="source"
+      position={Position.Top}
+      id="top-source-2"
+      className={handleClass}
+      style={{ left: "calc(50% + 18px)", top: offsets?.top ?? 0, bottom: "auto" }}
+    />
+    <Handle
+      type="target"
+      position={Position.Top}
+      id="top-target-2"
+      className={handleClass}
+      style={{ left: "calc(50% + 18px)", top: offsets?.top ?? 0, bottom: "auto" }}
     />
 
+    {/* BOTTOM handles */}
     <Handle
       type="source"
       position={Position.Bottom}
-      id="bottom-source"
+      id="bottom-source-0"
       className={handleClass}
-      style={
-        offsets?.bottom ? { bottom: offsets.bottom, top: "auto" } : undefined
-      }
+      style={{ left: "calc(50% - 18px)", bottom: offsets?.bottom ?? 0, top: "auto" }}
     />
     <Handle
       type="target"
       position={Position.Bottom}
-      id="bottom-target"
+      id="bottom-target-0"
       className={handleClass}
-      style={
-        offsets?.bottom ? { bottom: offsets.bottom, top: "auto" } : undefined
-      }
+      style={{ left: "calc(50% - 18px)", bottom: offsets?.bottom ?? 0, top: "auto" }}
+    />
+    <Handle
+      type="source"
+      position={Position.Bottom}
+      id="bottom-source-1"
+      className={handleClass}
+      style={{ left: "50%", bottom: offsets?.bottom ?? 0, top: "auto" }}
+    />
+    <Handle
+      type="target"
+      position={Position.Bottom}
+      id="bottom-target-1"
+      className={handleClass}
+      style={{ left: "50%", bottom: offsets?.bottom ?? 0, top: "auto" }}
+    />
+    <Handle
+      type="source"
+      position={Position.Bottom}
+      id="bottom-source-2"
+      className={handleClass}
+      style={{ left: "calc(50% + 18px)", bottom: offsets?.bottom ?? 0, top: "auto" }}
+    />
+    <Handle
+      type="target"
+      position={Position.Bottom}
+      id="bottom-target-2"
+      className={handleClass}
+      style={{ left: "calc(50% + 18px)", bottom: offsets?.bottom ?? 0, top: "auto" }}
     />
 
+    {/* LEFT handles */}
     <Handle
       type="source"
       position={Position.Left}
-      id="left-source"
+      id="left-source-0"
       className={handleClass}
-      style={offsets?.left ? { left: offsets.left, right: "auto" } : undefined}
+      style={{ top: "calc(50% - 18px)", left: offsets?.left ?? 0, right: "auto" }}
     />
     <Handle
       type="target"
       position={Position.Left}
-      id="left-target"
+      id="left-target-0"
       className={handleClass}
-      style={offsets?.left ? { left: offsets.left, right: "auto" } : undefined}
+      style={{ top: "calc(50% - 18px)", left: offsets?.left ?? 0, right: "auto" }}
+    />
+    <Handle
+      type="source"
+      position={Position.Left}
+      id="left-source-1"
+      className={handleClass}
+      style={{ top: "50%", left: offsets?.left ?? 0, right: "auto" }}
+    />
+    <Handle
+      type="target"
+      position={Position.Left}
+      id="left-target-1"
+      className={handleClass}
+      style={{ top: "50%", left: offsets?.left ?? 0, right: "auto" }}
+    />
+    <Handle
+      type="source"
+      position={Position.Left}
+      id="left-source-2"
+      className={handleClass}
+      style={{ top: "calc(50% + 18px)", left: offsets?.left ?? 0, right: "auto" }}
+    />
+    <Handle
+      type="target"
+      position={Position.Left}
+      id="left-target-2"
+      className={handleClass}
+      style={{ top: "calc(50% + 18px)", left: offsets?.left ?? 0, right: "auto" }}
     />
 
+    {/* RIGHT handles */}
     <Handle
       type="source"
       position={Position.Right}
-      id="right-source"
+      id="right-source-0"
       className={handleClass}
-      style={
-        offsets?.right ? { right: offsets.right, left: "auto" } : undefined
-      }
+      style={{ top: "calc(50% - 18px)", right: offsets?.right ?? 0, left: "auto" }}
     />
     <Handle
       type="target"
       position={Position.Right}
-      id="right-target"
+      id="right-target-0"
       className={handleClass}
-      style={
-        offsets?.right ? { right: offsets.right, left: "auto" } : undefined
-      }
+      style={{ top: "calc(50% - 18px)", right: offsets?.right ?? 0, left: "auto" }}
+    />
+    <Handle
+      type="source"
+      position={Position.Right}
+      id="right-source-1"
+      className={handleClass}
+      style={{ top: "50%", right: offsets?.right ?? 0, left: "auto" }}
+    />
+    <Handle
+      type="target"
+      position={Position.Right}
+      id="right-target-1"
+      className={handleClass}
+      style={{ top: "50%", right: offsets?.right ?? 0, left: "auto" }}
+    />
+    <Handle
+      type="source"
+      position={Position.Right}
+      id="right-source-2"
+      className={handleClass}
+      style={{ top: "calc(50% + 18px)", right: offsets?.right ?? 0, left: "auto" }}
+    />
+    <Handle
+      type="target"
+      position={Position.Right}
+      id="right-target-2"
+      className={handleClass}
+      style={{ top: "calc(50% + 18px)", right: offsets?.right ?? 0, left: "auto" }}
     />
   </>
 );
@@ -115,7 +223,7 @@ const renderHandles = (offsets?: {
 const svgPathClasses =
   "group-hover:shadow-[0_0_15px_rgba(99,102,241,0.2)] transition-shadow";
 
-export const RectangleNode = ({ data, id, selected }: NodeProps<Node>) => {
+const RectangleNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
   const color = (data.color as string) || "#6366f1";
   const fillColor = (data.fillColor as string) || "#1e293b";
@@ -164,7 +272,7 @@ export const RectangleNode = ({ data, id, selected }: NodeProps<Node>) => {
   );
 };
 
-export const SquareNode = ({ data, id, selected }: NodeProps<Node>) => {
+const SquareNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
   const color = (data.color as string) || "#6366f1";
   const fillColor = (data.fillColor as string) || "#1e293b";
@@ -215,7 +323,7 @@ export const SquareNode = ({ data, id, selected }: NodeProps<Node>) => {
   );
 };
 
-export const CircleNode = ({ data, id, selected }: NodeProps<Node>) => {
+const CircleNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
   const color = (data.color as string) || "#6366f1";
   const fillColor = (data.fillColor as string) || "#1e293b";
@@ -264,7 +372,7 @@ export const CircleNode = ({ data, id, selected }: NodeProps<Node>) => {
   );
 };
 
-export const DiamondNode = ({ data, id, selected }: NodeProps<Node>) => {
+const DiamondNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
   const color = (data.color as string) || "#6366f1";
   const fillColor = (data.fillColor as string) || "#1e293b";
@@ -309,7 +417,7 @@ export const DiamondNode = ({ data, id, selected }: NodeProps<Node>) => {
   );
 };
 
-export const ParallelogramNode = ({ data, id, selected }: NodeProps<Node>) => {
+const ParallelogramNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
   const color = (data.color as string) || "#6366f1";
   const fillColor = (data.fillColor as string) || "#1e293b";
@@ -354,7 +462,7 @@ export const ParallelogramNode = ({ data, id, selected }: NodeProps<Node>) => {
   );
 };
 
-export const HexagonNode = ({ data, id, selected }: NodeProps<Node>) => {
+const HexagonNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
   const color = (data.color as string) || "#6366f1";
   const fillColor = (data.fillColor as string) || "#1e293b";
@@ -399,7 +507,7 @@ export const HexagonNode = ({ data, id, selected }: NodeProps<Node>) => {
   );
 };
 
-export const CylinderNode = ({ data, id, selected }: NodeProps<Node>) => {
+const CylinderNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
   const color = (data.color as string) || "#6366f1";
   const fillColor = (data.fillColor as string) || "#1e293b";
@@ -452,7 +560,7 @@ export const CylinderNode = ({ data, id, selected }: NodeProps<Node>) => {
   );
 };
 
-export const GroupNode = () => {
+const GroupNode = () => {
   return (
     <div className="w-full h-full relative pointer-events-none opacity-0">
       {/* Completely invisible grouping container */}

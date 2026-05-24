@@ -7,10 +7,12 @@ import { useDiagramStore } from "../store/useDiagramStore";
 import { useAuth } from "../context/AuthContext";
 import { renameProject } from "../lib/projects";
 import { ThemeToggle } from "./ui/ThemeToggle";
+import { getNodesBounds } from "@xyflow/react";
 
 export const Navbar = () => {
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isTransparent, setIsTransparent] = useState(true);
+  const [exportScope, setExportScope] = useState<"entire" | "selected">("entire");
   const navigate = useNavigate();
   const { session } = useAuth();
   const { saveProject, projectTitle, setProjectTitle, projectStatus, currentProjectId } = useDiagramStore();
@@ -60,61 +62,139 @@ export const Navbar = () => {
 
   const { setIsExporting, reactFlowInstance, setSelectedNodeId, setSelectedEdgeId } = useDiagramStore();
 
+  // Calculate active selected node count
+  const selectedNodesCount = reactFlowInstance
+    ? reactFlowInstance.getNodes().filter((n) => n.selected).length
+    : 0;
+
+  // Auto-select selection scope and transparent background when modal opens with active selections
+  useEffect(() => {
+    if (isExportOpen && reactFlowInstance) {
+      const selectedCount = reactFlowInstance.getNodes().filter((n) => n.selected).length;
+      if (selectedCount > 0) {
+        setExportScope("selected");
+        setIsTransparent(true);
+      } else {
+        setExportScope("entire");
+      }
+    }
+  }, [isExportOpen, reactFlowInstance]);
+
   const handleExport = async () => {
-    const viewportEl = document.querySelector(
-      ".react-flow"
-    ) as HTMLElement;
+    if (!reactFlowInstance) {
+      toast.error("Export failed. Canvas is not loaded.");
+      return;
+    }
+
+    const allNodes = reactFlowInstance.getNodes();
+    const allEdges = reactFlowInstance.getEdges();
+    const selectedNodes = allNodes.filter((n) => n.selected);
+    const selectedEdges = allEdges.filter((e) => e.selected);
+    const isSelectedOnly = exportScope === "selected";
+    
+    // Choose export target based on selected scope
+    const targetNodes = isSelectedOnly ? selectedNodes : allNodes;
+
+    if (targetNodes.length === 0) {
+      toast.error(isSelectedOnly ? "No elements selected to export." : "No diagram elements to export.");
+      return;
+    }
+
+    const viewportEl = document.querySelector(".react-flow__viewport") as HTMLElement;
     if (!viewportEl) {
       toast.error("Export failed. Please try again.");
       return;
     }
 
-    // Save current state
-    const prevViewport = reactFlowInstance ? reactFlowInstance.getViewport() : { x: 0, y: 0, zoom: 1 };
+    // Save current active store selections
     const prevSelectedNodeId = useDiagramStore.getState().selectedNodeId;
     const prevSelectedEdgeId = useDiagramStore.getState().selectedEdgeId;
 
-    // Clear selection before capture
+    // Clear UI store selection highlights before capturing
     setSelectedNodeId(null);
     setSelectedEdgeId(null);
 
-    // Fit view to show all nodes
-    if (reactFlowInstance) {
-      reactFlowInstance.fitView({ duration: 0, padding: 0.2 });
-    }
+    // Save React Flow active selections and strip selection borders for clean image capture
+    const cleanNodes = allNodes.map((n) => ({ ...n, selected: false }));
+    const cleanEdges = allEdges.map((e) => ({ ...e, selected: false }));
+    reactFlowInstance.setNodes(cleanNodes);
+    reactFlowInstance.setEdges(cleanEdges);
 
-    // Wait for fitView to apply
-    await new Promise((r) => requestAnimationFrame(r));
-    await new Promise((r) => requestAnimationFrame(r));
+    // Calculate crop boundaries (bounding box + padding)
+    const bounds = getNodesBounds(targetNodes);
+    const padding = 50;
+    const width = bounds.width + padding * 2;
+    const height = bounds.height + padding * 2;
 
-    // Flash-toggle: hide overlays before capture
+    // Temporarily hide overlays (controls, minimap)
     setIsExporting(true);
 
-    // Wait one frame for React to flush the conditional render
+    // Wait for state updates to flush to DOM
+    await new Promise((r) => requestAnimationFrame(r));
     await new Promise((r) => requestAnimationFrame(r));
 
     const flowWrapper = document.querySelector(".react-flow") as HTMLElement;
     const prevBg = flowWrapper?.style.background || "";
 
-    // Set the wrapper background for the capture phase
+    // Temporarily apply solid or transparent background styling for capture
     if (flowWrapper) {
       flowWrapper.style.background = isTransparent ? "transparent" : "#09090b";
     }
 
     toPng(viewportEl, {
       backgroundColor: isTransparent ? "transparent" : "#09090b",
+      width: width,
+      height: height,
+      style: {
+        width: `${width}px`,
+        height: `${height}px`,
+        transform: `translate(${-bounds.x + padding}px, ${-bounds.y + padding}px) scale(1)`,
+      },
       pixelRatio: 3,
-      filter: (node: HTMLElement) => {
-        // Extra safety: exclude any straggler controls
-        if (node?.classList?.contains("react-flow__controls")) return false;
-        if (node?.classList?.contains("react-flow__minimap")) return false;
-        if (node?.classList?.contains("react-flow__background")) return false;
+      filter: (domNode: HTMLElement) => {
+        // Exclude unnecessary canvas controls and background sheets
+        if (domNode?.classList?.contains("react-flow__controls")) return false;
+        if (domNode?.classList?.contains("react-flow__minimap")) return false;
+        if (domNode?.classList?.contains("react-flow__background")) return false;
+
+        // Custom filtering for selected-only scope
+        if (isSelectedOnly) {
+          // Exclude the outer ER Group container itself so it does not cover the selection
+          if (domNode?.classList?.contains("react-flow__node") && domNode.getAttribute("data-id") === "er-container") {
+            return false;
+          }
+
+          // If node, check if selected
+          if (domNode?.classList?.contains("react-flow__node")) {
+            const nodeId = domNode.getAttribute("data-id");
+            const isNodeSelected = selectedNodes.some((n) => n.id === nodeId);
+            if (!isNodeSelected) return false;
+          }
+
+          // If edge, check smart edge inclusion rule
+          if (domNode?.classList?.contains("react-flow__edge")) {
+            const edgeId = domNode.getAttribute("data-id");
+            const edge = allEdges.find((e) => e.id === edgeId);
+            if (edge) {
+              const isEdgeSelected = selectedEdges.some((e) => e.id === edge.id);
+              const isSourceSelected = selectedNodes.some((n) => n.id === edge.source);
+              const isTargetSelected = selectedNodes.some((n) => n.id === edge.target);
+              
+              // Include edge if explicitly selected OR if both connecting nodes are selected
+              const shouldIncludeEdge = isEdgeSelected || (isSourceSelected && isTargetSelected);
+              if (!shouldIncludeEdge) return false;
+            } else {
+              return false;
+            }
+          }
+        }
         return true;
       },
     })
       .then((dataUrl) => {
         const link = document.createElement("a");
-        link.download = `${projectTitle || "diagram"}-${isTransparent ? "transparent" : "bg"}.png`;
+        const suffix = isSelectedOnly ? "selection" : "full";
+        link.download = `${projectTitle || "diagram"}-${suffix}-${isTransparent ? "transparent" : "bg"}.png`;
         link.href = dataUrl;
         link.click();
         setIsExportOpen(false);
@@ -125,18 +205,16 @@ export const Navbar = () => {
         toast.error("Export failed. Please try again.");
       })
       .finally(() => {
-        // Restore overlays regardless of success or failure
+        // Restore background styles
         if (flowWrapper) {
           flowWrapper.style.background = prevBg;
         }
+        
         setIsExporting(false);
 
-        // Restore previous viewport
-        if (reactFlowInstance) {
-          reactFlowInstance.setViewport(prevViewport);
-        }
-
-        // Restore selection
+        // Restore selection states in React Flow and Store
+        reactFlowInstance.setNodes(allNodes);
+        reactFlowInstance.setEdges(allEdges);
         if (prevSelectedNodeId) setSelectedNodeId(prevSelectedNodeId);
         if (prevSelectedEdgeId) setSelectedEdgeId(prevSelectedEdgeId);
       });
@@ -221,8 +299,8 @@ export const Navbar = () => {
       </div>
 
       {isExportOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm">
-          <div className="bg-panel border border-border rounded-xl shadow-2xl w-[400px] p-6 flex flex-col gap-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-panel border border-border rounded-xl shadow-2xl w-[400px] p-6 flex flex-col gap-6 animate-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-bold text-slate-100">Export Diagram</h3>
               <button
@@ -234,14 +312,55 @@ export const Navbar = () => {
               </button>
             </div>
             
-            <div className="bg-input border border-input-border rounded-lg p-4 flex justify-between items-center">
+            <div className="flex flex-col gap-2.5">
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Export Scope</span>
+              <div className="grid grid-cols-2 gap-1 bg-input border border-border/80 rounded-lg p-1">
+                <button
+                  type="button"
+                  onClick={() => setExportScope("entire")}
+                  className={`py-2 text-sm font-medium rounded-md transition-all duration-200 cursor-pointer ${
+                    exportScope === "entire"
+                      ? "bg-[#6366f1] text-white shadow-md shadow-indigo-900/10"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
+                  }`}
+                >
+                  Entire Diagram
+                </button>
+                <button
+                  type="button"
+                  disabled={selectedNodesCount === 0}
+                  onClick={() => setExportScope("selected")}
+                  className={`py-2 text-sm font-medium rounded-md transition-all duration-200 flex items-center justify-center gap-1.5 ${
+                    selectedNodesCount === 0
+                      ? "opacity-30 cursor-not-allowed text-slate-500"
+                      : exportScope === "selected"
+                        ? "bg-[#6366f1] text-white shadow-md shadow-indigo-900/10 cursor-pointer"
+                        : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40 cursor-pointer"
+                  }`}
+                >
+                  Selection Only
+                  {selectedNodesCount > 0 && (
+                    <span className="px-1.5 py-0.5 text-[10px] bg-white/20 text-white rounded-full font-bold leading-none">
+                      {selectedNodesCount}
+                    </span>
+                  )}
+                </button>
+              </div>
+              {selectedNodesCount === 0 && (
+                <span className="text-[11px] text-slate-400 text-center italic mt-0.5 leading-relaxed">
+                  Hold <kbd className="px-1.5 py-0.5 bg-slate-800 border border-slate-700/60 rounded text-slate-300 font-mono text-[9px] shadow-sm">Shift</kbd> and drag on the canvas to select elements to export.
+                </span>
+              )}
+            </div>
+
+            <div className="bg-input border border-border/80 rounded-lg p-4 flex justify-between items-center">
               <div className="flex flex-col">
                 <span className="text-sm font-medium text-slate-300">Background</span>
                 <span className="text-xs text-slate-500 mt-0.5">Toggle PNG Transparency</span>
               </div>
               <button
                 onClick={() => setIsTransparent(!isTransparent)}
-                className={`text-sm font-medium px-4 py-2 rounded-md transition-all duration-200 ease-in-out ${
+                className={`text-sm font-medium px-4 py-2 rounded-md transition-all duration-200 ease-in-out cursor-pointer ${
                   isTransparent 
                     ? "bg-[#6366f1]/20 text-[#6366f1] border border-[#6366f1]/30 shadow-[0_0_10px_rgba(99,102,241,0.15)]" 
                     : "bg-neutral/10 text-neutral/70 border border-border hover:bg-neutral/20 transition-all"
@@ -253,7 +372,7 @@ export const Navbar = () => {
 
             <button
               onClick={handleExport}
-              className="w-full py-3 bg-[#6366f1] hover:bg-indigo-500 rounded-lg text-white font-medium flex justify-center items-center gap-2 transition-all duration-200 shadow-[0_4px_14px_0_rgba(99,102,241,0.39)] hover:shadow-[0_6px_20px_rgba(99,102,241,0.23)] hover:-translate-y-0.5"
+              className="w-full py-3 bg-[#6366f1] hover:bg-indigo-500 rounded-lg text-white font-medium flex justify-center items-center gap-2 transition-all duration-200 shadow-[0_4px_14px_0_rgba(99,102,241,0.39)] hover:shadow-[0_6px_20px_rgba(99,102,241,0.23)] hover:-translate-y-0.5 cursor-pointer"
             >
               <Download size={18} /> Download PNG
             </button>
@@ -263,3 +382,4 @@ export const Navbar = () => {
     </>
   );
 };
+
