@@ -59,9 +59,9 @@ const SignUpForm = () => {
         <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-primary/20 flex items-center justify-center">
           <Mail className="w-7 h-7 text-primary" />
         </div>
-        <h1 className="text-2xl font-black tracking-tight mb-2 text-neutral">
+        <h2 className="text-2xl font-black tracking-tight mb-2 text-neutral">
           Check Your Email
-        </h1>
+        </h2>
         <p className="text-sm text-neutral/40 leading-relaxed">
           We sent a confirmation link to{" "}
           <span className="text-primary font-medium">{email}</span>. Click the

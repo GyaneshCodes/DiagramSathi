@@ -5,6 +5,7 @@ import { getContrastTextColor, renderHandles } from "./Nodes";
 
 export const ProcessNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
+  const diagramType = useDiagramStore((state) => state.diagramType);
   const color = (data.color as string) || "#6366f1";
   const fillColor = (data.fillColor as string) || "#1e293b";
   const { theme } = useTheme();
@@ -22,7 +23,7 @@ export const ProcessNode = ({ data, id, selected }: NodeProps<Node>) => {
          }}>
       <NodeResizer
         color={color}
-        isVisible={!!selected}
+        isVisible={!!selected && diagramType === "er"}
         minWidth={100}
         minHeight={100}
         keepAspectRatio

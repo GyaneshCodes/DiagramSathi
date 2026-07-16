@@ -109,9 +109,9 @@ const AuthPage = () => {
                 alt="DiagramSathi"
                 className="h-20 w-auto object-contain mb-6 drop-shadow-[0_0_15px_rgba(128,59,255,0.5)]"
               />
-              <h1 className="text-3xl font-black tracking-tight mb-3">
+              <h2 className="text-3xl font-black tracking-tight mb-3">
                 Welcome Back!
-              </h1>
+              </h2>
               <p className="text-sm leading-relaxed mb-8 text-white/70 max-w-[240px]">
                 Already have an account? Sign in to continue building your
                 architecture diagrams.
@@ -134,9 +134,9 @@ const AuthPage = () => {
                 alt="DiagramSathi"
                 className="h-20 w-auto object-contain mb-6 drop-shadow-[0_0_15px_rgba(128,59,255,0.5)]"
               />
-              <h1 className="text-3xl font-black tracking-tight mb-3">
+              <h2 className="text-3xl font-black tracking-tight mb-3">
                 Hello, Architect!
-              </h1>
+              </h2>
               <p className="text-sm leading-relaxed mb-8 text-white/70 max-w-[240px]">
                 New here? Create an account and start turning ideas into
                 professional diagrams.

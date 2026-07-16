@@ -5,6 +5,7 @@ import { getContrastTextColor, renderHandles } from "./Nodes";
 
 export const EntityNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
+  const diagramType = useDiagramStore((state) => state.diagramType);
   const color = (data.color as string) || "#6366f1";
   const fillColor = (data.fillColor as string) || "#1e293b";
   const { theme } = useTheme();
@@ -22,7 +23,7 @@ export const EntityNode = ({ data, id, selected }: NodeProps<Node>) => {
          }}>
       <NodeResizer
         color={color}
-        isVisible={!!selected}
+        isVisible={!!selected && diagramType === "er"}
         minWidth={120}
         minHeight={60}
         onResizeEnd={(_, { width, height }) => updateNode(id, { width, height })}

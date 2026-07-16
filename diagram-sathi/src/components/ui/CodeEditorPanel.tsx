@@ -10,7 +10,7 @@ import { useEffect, useRef, useCallback } from "react";
  * Changes are bidirectional: code ↔ AST.
  */
 export const CodeEditorPanel = () => {
-  const { mermaidCode, setMermaidCode, diagramType } = useDiagramStore();
+  const { mermaidCode, setMermaidCode, syncCodeToAst, diagramType } = useDiagramStore();
   const { erCode, setErCode, syncCodeToSchemas } = useErDiagramStore();
 
   const isEr = diagramType === "er";
@@ -29,9 +29,14 @@ export const CodeEditorPanel = () => {
         }, 400);
       } else {
         setMermaidCode(value);
+        // Debounced parse for flowchart/DFD
+        if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+        syncTimerRef.current = setTimeout(() => {
+          syncCodeToAst();
+        }, 450);
       }
     },
-    [isEr, setErCode, setMermaidCode, syncCodeToSchemas]
+    [isEr, setErCode, setMermaidCode, syncCodeToSchemas, syncCodeToAst]
   );
 
   // Cleanup timer on unmount

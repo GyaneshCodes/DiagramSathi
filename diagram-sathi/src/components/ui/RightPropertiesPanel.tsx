@@ -118,6 +118,14 @@ export const RightPropertiesPanel = () => {
                 onChange={(e) =>
                   updateNode(selectedNode.id, { label: e.target.value })
                 }
+                onBlur={() => {
+                  useDiagramStore.getState().applyLayoutAsync();
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    useDiagramStore.getState().applyLayoutAsync();
+                  }
+                }}
                 className="w-full text-xs bg-bg border border-border/80 rounded block p-2.5 text-neutral outline-none focus:border-primary placeholder:text-neutral/30"
                 placeholder="Enter label..."
               />
@@ -240,6 +248,14 @@ export const RightPropertiesPanel = () => {
                 onChange={(e) =>
                   updateEdge(selectedEdge.id, { label: e.target.value })
                 }
+                onBlur={() => {
+                  useDiagramStore.getState().applyLayoutAsync();
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    useDiagramStore.getState().applyLayoutAsync();
+                  }
+                }}
                 className="w-full text-xs bg-bg border border-border/80 rounded block p-2.5 text-neutral outline-none focus:border-primary placeholder:text-neutral/30"
                 placeholder="Flow label..."
               />

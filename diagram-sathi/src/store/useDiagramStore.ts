@@ -2,8 +2,10 @@ import { create } from "zustand";
 import { useErDiagramStore } from "./useErDiagramStore";
 import { getProject, updateProject, createProject } from "../lib/projects";
 import { applyElkLayout } from "../utils/elkLayout";
+import { getLayoutedElements } from "../utils/layoutGraph";
 import { measureNodes } from "../utils/measureNodes";
 import type { ReactFlowInstance } from "@xyflow/react";
+import { parseMermaidCode, serializeAstToMermaid } from "../utils/mermaidParser";
 
 // Basic structure for our Abstract Syntax Tree (AST) representing a DFD diagram.
 export interface DfdNode {
@@ -93,6 +95,8 @@ interface DiagramState {
   forceLayoutRefresh: () => void;
   saveLayoutToSupabase: () => Promise<void>;
   resetToBlank: (type: "dfd" | "flowchart" | "er") => void;
+  syncCodeToAst: () => void;
+  syncAstToCode: () => void;
 }
 
 export const useDiagramStore = create<DiagramState>((set, get) => ({
@@ -130,8 +134,14 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   setDfdLevel: (level) => set({ dfdLevel: level }),
   setIsGenerating: (isGenerating) => set({ isGenerating }),
   setActiveTool: (tool) => set({ activeTool: tool }),
-  setSelectedNodeId: (id) => set({ selectedNodeId: id }),
-  setSelectedEdgeId: (id) => set({ selectedEdgeId: id }),
+  setSelectedNodeId: (id) => set((state) => ({
+    selectedNodeId: id,
+    selectedEdgeId: id ? null : state.selectedEdgeId,
+  })),
+  setSelectedEdgeId: (id) => set((state) => ({
+    selectedEdgeId: id,
+    selectedNodeId: id ? null : state.selectedNodeId,
+  })),
   setIsExporting: (isExporting) => set({ isExporting }),
   setLeftPanelCollapsed: (leftPanelCollapsed) => set({ leftPanelCollapsed }),
   setRightPanelCollapsed: (rightPanelCollapsed) => set({ rightPanelCollapsed }),
@@ -173,24 +183,46 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       ...node 
     } as DfdNode;
     set((state) => ({ nodes: [...state.nodes, newNode] }));
+    
+    if (get().diagramType !== "er") {
+      get().applyLayoutAsync();
+    }
+    get().syncAstToCode();
   },
 
   addEdge: (edge) => {
     const id = `e_${get().edges.length + 1}_${Math.random().toString(36).substr(2, 4)}`;
     const newEdge = { id, source: "", target: "", ...edge } as DfdEdge;
     set((state) => ({ edges: [...state.edges, newEdge] }));
+    
+    if (get().diagramType !== "er") {
+      get().applyLayoutAsync();
+    }
+    get().syncAstToCode();
   },
 
   updateNode: (id, data) => {
     set((state) => ({
       nodes: state.nodes.map((n) => (n.id === id ? { ...n, ...data } : n)),
     }));
+    
+    // Auto-layout when shape type changes
+    if (data.type && get().diagramType !== "er") {
+      get().applyLayoutAsync();
+    }
+    get().syncAstToCode();
   },
 
   updateEdge: (id, data) => {
     set((state) => ({
       edges: state.edges.map((e) => (e.id === id ? { ...e, ...data } : e)),
     }));
+    
+    // Auto-layout when edge source/target changes
+    if ((data.source || data.target) && get().diagramType !== "er") {
+      get().applyLayoutAsync();
+    }
+    get().syncAstToCode();
   },
 
   removeNode: (id) => {
@@ -199,6 +231,11 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       edges: state.edges.filter((e) => e.source !== id && e.target !== id),
       selectedNodeId: state.selectedNodeId === id ? null : state.selectedNodeId,
     }));
+    
+    if (get().diagramType !== "er") {
+      get().applyLayoutAsync();
+    }
+    get().syncAstToCode();
   },
 
   removeEdge: (id) => {
@@ -206,22 +243,50 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       edges: state.edges.filter((e) => e.id !== id),
       selectedEdgeId: state.selectedEdgeId === id ? null : state.selectedEdgeId,
     }));
+    
+    if (get().diagramType !== "er") {
+      get().applyLayoutAsync();
+    }
+    get().syncAstToCode();
   },
 
   applyAIGeneratedDiagram: async (newNodes, newEdges) => {
-    const { nodes: existingNodes, edges: existingEdges, dfdLevel, direction } = get();
+    const { nodes: existingNodes, edges: existingEdges, dfdLevel, direction, diagramType } = get();
 
     set({ isLayouting: true });
 
     try {
       const measuredNewNodes = await measureNodes(newNodes);
       
-      const { nodes: layoutedNewNodes, edges: layoutedNewEdges } = await applyElkLayout(
-        measuredNewNodes,
-        newEdges,
-        direction,
-        dfdLevel
-      );
+      let layoutedNewNodes: DfdNode[] = [];
+      let layoutedNewEdges: DfdEdge[] = [];
+
+      if (diagramType === "dfd" || diagramType === "flowchart") {
+        // Run Dagre layout
+        const result = getLayoutedElements(
+          measuredNewNodes as any[],
+          newEdges as any[],
+          { direction }
+        );
+        layoutedNewNodes = result.nodes as unknown as DfdNode[];
+        // Clear ELK specific routing metadata so React Flow defaults to floating/dynamic edges
+        layoutedNewEdges = newEdges.map(e => ({
+          ...e,
+          sourceHandle: undefined,
+          targetHandle: undefined,
+          data: undefined
+        }));
+      } else {
+        // Fallback to ELK
+        const result = await applyElkLayout(
+          measuredNewNodes,
+          newEdges,
+          direction,
+          dfdLevel
+        );
+        layoutedNewNodes = result.nodes;
+        layoutedNewEdges = result.edges;
+      }
 
       let maxX = 0;
       if (existingNodes.length > 0) {
@@ -268,6 +333,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
         isLayouting: false
       });
 
+      get().syncAstToCode();
       get().saveLayoutToSupabase();
     } catch (err) {
       console.error("AI Layout failed", err);
@@ -288,6 +354,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       selectedNodeId: null,
       selectedEdgeId: null,
       projectStatus: "active",
+      mermaidCode: "",
     });
     if (type === "er") {
       useErDiagramStore.getState().reset();
@@ -378,7 +445,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   },
 
   applyLayoutAsync: async () => {
-    const { nodes, edges, dfdLevel, direction } = get();
+    const { nodes, edges, dfdLevel, direction, diagramType } = get();
     if (nodes.length === 0) return;
 
     set({ isLayouting: true });
@@ -387,13 +454,35 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       // 1. Measure nodes (off-screen rendering to get precise dimensions)
       const measuredNodes = await measureNodes(nodes);
       
-      // 2. Run ELK layout
-      const { nodes: layoutedNodes, edges: layoutedEdges } = await applyElkLayout(
-        measuredNodes,
-        edges,
-        direction,
-        dfdLevel
-      );
+      let layoutedNodes: DfdNode[] = [];
+      let layoutedEdges: DfdEdge[] = [];
+
+      if (diagramType === "dfd" || diagramType === "flowchart") {
+        // Run Dagre layout
+        const result = getLayoutedElements(
+          measuredNodes as any[],
+          edges as any[],
+          { direction }
+        );
+        layoutedNodes = result.nodes as unknown as DfdNode[];
+        // Clear ELK specific routing metadata so React Flow defaults to floating/dynamic edges
+        layoutedEdges = edges.map(e => ({
+          ...e,
+          sourceHandle: undefined,
+          targetHandle: undefined,
+          data: undefined
+        }));
+      } else {
+        // Fallback to ELK layout
+        const result = await applyElkLayout(
+          measuredNodes,
+          edges,
+          direction,
+          dfdLevel
+        );
+        layoutedNodes = result.nodes;
+        layoutedEdges = result.edges;
+      }
 
       set({
         nodes: layoutedNodes,
@@ -405,7 +494,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       // 3. Auto-save layout
       get().saveLayoutToSupabase();
     } catch (err) {
-      console.error("ELK layout failed:", err);
+      console.error("Layout failed:", err);
       set({ isLayouting: false });
     }
   },
@@ -430,6 +519,53 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
     } catch (err) {
       console.error("Failed to save layout state", err);
     }
+  },
+
+  syncCodeToAst: () => {
+    const currentType = get().diagramType;
+    if (currentType === "er") return;
+    const code = get().mermaidCode;
+    if (!code || !code.trim()) return;
+    try {
+      const { nodes, edges, direction, diagramType } = parseMermaidCode(code, currentType);
+      
+      // Preserve coordinates and styling from matching existing nodes
+      const oldNodes = get().nodes;
+      const mergedNodes = nodes.map(newN => {
+        const oldN = oldNodes.find(o => o.id === newN.id);
+        if (oldN) {
+          return {
+            ...newN,
+            position: oldN.position || newN.position,
+            width: oldN.width || newN.width,
+            height: oldN.height || newN.height,
+            color: oldN.color || newN.color,
+            fillColor: oldN.fillColor || newN.fillColor
+          };
+        }
+        return newN;
+      });
+
+      set({
+        nodes: mergedNodes,
+        edges,
+        direction,
+        diagramType,
+        preferredDiagramType: diagramType
+      });
+
+      // Automatically compute layouts/dimensions for the new structure
+      get().applyLayoutAsync();
+    } catch (err) {
+      console.error("Failed to parse Mermaid code:", err);
+    }
+  },
+
+  syncAstToCode: () => {
+    const { nodes, edges, direction, diagramType } = get();
+    if (diagramType === "er") return;
+    const code = serializeAstToMermaid(nodes, edges, direction, diagramType);
+    set({ mermaidCode: code });
   },
 }));
 

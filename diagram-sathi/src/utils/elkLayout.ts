@@ -35,27 +35,40 @@ export async function applyElkLayout(
   nodes.forEach((n) => {
     const { width, height } = getNodeDimensions(n.type, n.width, n.height);
     
-    // Inject 4 fixed ports for every node
-    const ports: ElkPort[] = [
-      { id: 'top',    layoutOptions: { 'elk.port.side': 'NORTH' } },
-      { id: 'right',  layoutOptions: { 'elk.port.side': 'EAST'  } },
-      { id: 'bottom', layoutOptions: { 'elk.port.side': 'SOUTH' } },
-      { id: 'left',   layoutOptions: { 'elk.port.side': 'WEST'  } },
+    const isGroup = n.type === 'group';
+    
+    // Inject 12 ports for every non-group node to support up to 3 parallel connections on each face
+    const ports: ElkPort[] = isGroup ? [] : [
+      // TOP (NORTH)
+      { id: `${n.id}_top-0`,    x: width / 2 - 18, y: 0 },
+      { id: `${n.id}_top-1`,    x: width / 2,      y: 0 },
+      { id: `${n.id}_top-2`,    x: width / 2 + 18, y: 0 },
+      // BOTTOM (SOUTH)
+      { id: `${n.id}_bottom-0`, x: width / 2 - 18, y: height },
+      { id: `${n.id}_bottom-1`, x: width / 2,      y: height },
+      { id: `${n.id}_bottom-2`, x: width / 2 + 18, y: height },
+      // LEFT (WEST)
+      { id: `${n.id}_left-0`,   x: 0,              y: height / 2 - 18 },
+      { id: `${n.id}_left-1`,   x: 0,              y: height / 2 },
+      { id: `${n.id}_left-2`,   x: 0,              y: height / 2 + 18 },
+      // RIGHT (EAST)
+      { id: `${n.id}_right-0`,  x: width,          y: height / 2 - 18 },
+      { id: `${n.id}_right-1`,  x: width,          y: height / 2 },
+      { id: `${n.id}_right-2`,  x: width,          y: height / 2 + 18 },
     ];
 
     const elkNode: ElkNode = {
       id: n.id,
-      width: n.type === 'group' ? undefined : width,
-      height: n.type === 'group' ? undefined : height,
+      width: isGroup ? undefined : width,
+      height: isGroup ? undefined : height,
       ports,
-      layoutOptions: n.type === 'group'
+      layoutOptions: isGroup
         ? {
             'elk.direction': 'DOWN',
             'elk.padding': '[top=40,left=40,bottom=40,right=40]',
           }
         : {
-            'elk.portConstraints': 'FIXED_SIDE',
-            'elk.ports.portSpacing': '15',
+            'elk.portConstraints': 'FIXED_POS',
           },
     };
     childrenMap.set(n.id, elkNode);
@@ -75,12 +88,30 @@ export async function applyElkLayout(
   });
 
   // ── 2. Build ELK edges ──────────────────────────────────────────
-  // Connect edges to nodes; ELK will pick the optimal port
-  const elkEdges: ElkExtendedEdge[] = edges.map((e) => ({
-    id: e.id,
-    sources: [e.source],
-    targets: [e.target],
-  }));
+  // Group edges by source-target pairs to calculate indices for parallel connection ports
+  const edgeCountMap = new Map<string, number>();
+  const elkEdges: ElkExtendedEdge[] = edges.map((e) => {
+    const sourcePortBase = direction === 'LR' ? 'right' : 'bottom';
+    const targetPortBase = direction === 'LR' ? 'left' : 'top';
+    
+    const key = `${e.source}->${e.target}`;
+    const count = edgeCountMap.get(key) || 0;
+    edgeCountMap.set(key, count + 1);
+    
+    // Map count to index (center first, then left/top offset, then right/bottom offset)
+    let portIdx = 1;
+    if (count === 1) portIdx = 0;
+    else if (count === 2) portIdx = 2;
+    
+    const sourcePort = `${sourcePortBase}-${portIdx}`;
+    const targetPort = `${targetPortBase}-${portIdx}`;
+
+    return {
+      id: e.id,
+      sources: [`${e.source}_${sourcePort}`],
+      targets: [`${e.target}_${targetPort}`],
+    };
+  });
 
   const graph: ElkNode = {
     id: 'root',
@@ -151,13 +182,25 @@ export async function applyElkLayout(
     });
   }
 
+  const edgeCountMap2 = new Map<string, number>();
   const updatedEdges = edges.map(e => {
     const route = edgeRoutingMap.get(e.id);
+    const sourcePortBase = direction === 'LR' ? 'right' : 'bottom';
+    const targetPortBase = direction === 'LR' ? 'left' : 'top';
+    
+    const key = `${e.source}->${e.target}`;
+    const count = edgeCountMap2.get(key) || 0;
+    edgeCountMap2.set(key, count + 1);
+    
+    let portIdx = 1;
+    if (count === 1) portIdx = 0;
+    else if (count === 2) portIdx = 2;
+
     if (route) {
       return {
         ...e,
-        sourceHandle: route.sourcePort ? `${route.sourcePort}-source` : undefined,
-        targetHandle: route.targetPort ? `${route.targetPort}-target` : undefined,
+        sourceHandle: `${sourcePortBase}-source-${portIdx}`,
+        targetHandle: `${targetPortBase}-target-${portIdx}`,
         data: {
           ...e.data,
           startPoint: route.startPoint,

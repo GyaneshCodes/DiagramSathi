@@ -33,7 +33,7 @@ export const getContrastTextColor = (hexColor: string, appTheme: "dark" | "light
 };
 
 const handleClass =
-  "!w-2 !h-2 !bg-[#6366f1] !border-2 !border-slate-800 !opacity-0 group-hover:!opacity-100 transition-opacity";
+  "!w-2 !h-2 !bg-[#6366f1] !border-2 !border-slate-800 !opacity-0 pointer-events-none";
 
 export const renderHandles = (offsets?: {
   top?: string;
@@ -221,10 +221,11 @@ export const renderHandles = (offsets?: {
 );
 
 const svgPathClasses =
-  "group-hover:shadow-[0_0_15px_rgba(99,102,241,0.2)] transition-shadow";
+  "group-hover:drop-shadow-[0_0_8px_rgba(99,102,241,0.4)] transition-all";
 
 const RectangleNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
+  const diagramType = useDiagramStore((state) => state.diagramType);
   const color = (data.color as string) || "#6366f1";
   const fillColor = (data.fillColor as string) || "#1e293b";
   const { theme } = useTheme();
@@ -237,7 +238,7 @@ const RectangleNode = ({ data, id, selected }: NodeProps<Node>) => {
     >
       <NodeResizer
         color="#6366f1"
-        isVisible={!!selected}
+        isVisible={!!selected && diagramType === "er"}
         minWidth={160}
         minHeight={60}
         maxWidth={400}
@@ -274,6 +275,7 @@ const RectangleNode = ({ data, id, selected }: NodeProps<Node>) => {
 
 const SquareNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
+  const diagramType = useDiagramStore((state) => state.diagramType);
   const color = (data.color as string) || "#6366f1";
   const fillColor = (data.fillColor as string) || "#1e293b";
   const { theme } = useTheme();
@@ -286,7 +288,7 @@ const SquareNode = ({ data, id, selected }: NodeProps<Node>) => {
     >
       <NodeResizer
         color="#6366f1"
-        isVisible={!!selected}
+        isVisible={!!selected && diagramType === "er"}
         minWidth={120}
         minHeight={120}
         maxWidth={400}
@@ -325,6 +327,7 @@ const SquareNode = ({ data, id, selected }: NodeProps<Node>) => {
 
 const CircleNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
+  const diagramType = useDiagramStore((state) => state.diagramType);
   const color = (data.color as string) || "#6366f1";
   const fillColor = (data.fillColor as string) || "#1e293b";
   const { theme } = useTheme();
@@ -337,7 +340,7 @@ const CircleNode = ({ data, id, selected }: NodeProps<Node>) => {
     >
       <NodeResizer
         color="#6366f1"
-        isVisible={!!selected}
+        isVisible={!!selected && diagramType === "er"}
         minWidth={130}
         minHeight={130}
         maxWidth={400}
@@ -374,6 +377,7 @@ const CircleNode = ({ data, id, selected }: NodeProps<Node>) => {
 
 const DiamondNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
+  const diagramType = useDiagramStore((state) => state.diagramType);
   const color = (data.color as string) || "#6366f1";
   const fillColor = (data.fillColor as string) || "#1e293b";
   const { theme } = useTheme();
@@ -386,7 +390,7 @@ const DiamondNode = ({ data, id, selected }: NodeProps<Node>) => {
     >
       <NodeResizer
         color="#6366f1"
-        isVisible={!!selected}
+        isVisible={!!selected && diagramType === "er"}
         minWidth={130}
         minHeight={130}
         maxWidth={400}
@@ -419,6 +423,7 @@ const DiamondNode = ({ data, id, selected }: NodeProps<Node>) => {
 
 const ParallelogramNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
+  const diagramType = useDiagramStore((state) => state.diagramType);
   const color = (data.color as string) || "#6366f1";
   const fillColor = (data.fillColor as string) || "#1e293b";
   const { theme } = useTheme();
@@ -431,7 +436,7 @@ const ParallelogramNode = ({ data, id, selected }: NodeProps<Node>) => {
     >
       <NodeResizer
         color={color}
-        isVisible={!!selected}
+        isVisible={!!selected && diagramType === "er"}
         minWidth={180}
         minHeight={60}
         maxWidth={450}
@@ -464,6 +469,7 @@ const ParallelogramNode = ({ data, id, selected }: NodeProps<Node>) => {
 
 const HexagonNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
+  const diagramType = useDiagramStore((state) => state.diagramType);
   const color = (data.color as string) || "#6366f1";
   const fillColor = (data.fillColor as string) || "#1e293b";
   const { theme } = useTheme();
@@ -476,7 +482,7 @@ const HexagonNode = ({ data, id, selected }: NodeProps<Node>) => {
     >
       <NodeResizer
         color={color}
-        isVisible={!!selected}
+        isVisible={!!selected && diagramType === "er"}
         minWidth={160}
         minHeight={70}
         maxWidth={400}
@@ -509,6 +515,7 @@ const HexagonNode = ({ data, id, selected }: NodeProps<Node>) => {
 
 const CylinderNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
+  const diagramType = useDiagramStore((state) => state.diagramType);
   const color = (data.color as string) || "#6366f1";
   const fillColor = (data.fillColor as string) || "#1e293b";
   const { theme } = useTheme();
@@ -521,7 +528,7 @@ const CylinderNode = ({ data, id, selected }: NodeProps<Node>) => {
     >
       <NodeResizer
         color="#6366f1"
-        isVisible={!!selected}
+        isVisible={!!selected && diagramType === "er"}
         minWidth={160}
         minHeight={80}
         maxWidth={400}
@@ -541,7 +548,7 @@ const CylinderNode = ({ data, id, selected }: NodeProps<Node>) => {
           fillOpacity={fillColor === "transparent" ? 0 : 1}
           stroke={color}
           strokeWidth="2"
-          className="opacity-90 transition-all group-hover:shadow-[0_0_15px_rgba(99,102,241,0.2)]"
+          className="opacity-90 transition-all group-hover:drop-shadow-[0_0_8px_rgba(99,102,241,0.4)]"
         />
         <path
           d="M 5,15 A 45,10 0 1 1 95,15 A 45,10 0 1 1 5,15 Z"
@@ -556,6 +563,43 @@ const CylinderNode = ({ data, id, selected }: NodeProps<Node>) => {
         {String(data.label)}
       </div>
       {renderHandles({ top: "15%", bottom: "5%", left: "5%", right: "5%" })}
+    </div>
+  );
+};
+
+const StadiumNode = ({ data, id, selected }: NodeProps<Node>) => {
+  const updateNode = useDiagramStore((state) => state.updateNode);
+  const diagramType = useDiagramStore((state) => state.diagramType);
+  const color = (data.color as string) || "#6366f1";
+  const fillColor = (data.fillColor as string) || "#1e293b";
+  const { theme } = useTheme();
+  const textColorClass = getContrastTextColor(fillColor, theme);
+
+  return (
+    <div
+      className="w-full h-full min-w-[140px] min-h-[60px] max-w-[400px] max-h-[300px] relative group flex items-center justify-center rounded-full"
+      style={{
+        width: "100%",
+        height: "100%",
+        backgroundColor: fillColor === "transparent" ? "transparent" : fillColor,
+        border: `2px solid ${color}`,
+      }}
+    >
+      <NodeResizer
+        color="#6366f1"
+        isVisible={!!selected && diagramType === "er"}
+        minWidth={140}
+        minHeight={60}
+        maxWidth={400}
+        maxHeight={300}
+        onResizeEnd={(_, { width, height }) =>
+          updateNode(id, { width, height })
+        }
+      />
+      <div className={`px-6 py-3 text-sm font-bold ${textColorClass} z-10 whitespace-normal relative text-center pointer-events-none max-w-[260px]`}>
+        {String(data.label)}
+      </div>
+      {renderHandles()}
     </div>
   );
 };
@@ -582,6 +626,7 @@ export const nodeTypes = {
   parallelogram: ParallelogramNode,
   hexagon: HexagonNode,
   cylinder: CylinderNode,
+  stadium: StadiumNode,
   group: GroupNode,
   process: ProcessNode,
   entity: EntityNode,

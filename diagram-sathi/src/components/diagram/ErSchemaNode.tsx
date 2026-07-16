@@ -69,7 +69,7 @@ export const ErSchemaNode = ({ id, selected }: NodeProps<Node>) => {
   const font = schema.fontFamily || "Inter";
 
   const handleClass =
-    "!w-2 !h-2 !bg-slate-400 !border-2 !border-slate-800 !opacity-0 group-hover:!opacity-100 transition-opacity";
+    "!w-2 !h-2 !bg-slate-400 !border-2 !border-slate-800 !opacity-0 pointer-events-none";
 
   return (
     <div

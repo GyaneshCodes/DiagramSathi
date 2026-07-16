@@ -202,7 +202,7 @@ export const useErDiagramStore = create<ErDiagramState>((set, get) => ({
 
     set((s) => ({ schemas: [...s.schemas, newSchema] }));
     get().syncSchemasToCode();
-    get().syncToMainStore();
+    get().applyLayout();
     return id;
   },
 
@@ -223,7 +223,7 @@ export const useErDiagramStore = create<ErDiagramState>((set, get) => ({
       selectedSchemaId: s.selectedSchemaId === id ? null : s.selectedSchemaId,
     }));
     get().syncSchemasToCode();
-    get().syncToMainStore();
+    get().applyLayout();
   },
 
   // ── Column CRUD ───────────────────────────────────────────────
@@ -290,7 +290,7 @@ export const useErDiagramStore = create<ErDiagramState>((set, get) => ({
     };
     set((s) => ({ relationships: [...s.relationships, newRel] }));
     get().syncSchemasToCode();
-    get().syncToMainStore();
+    get().applyLayout();
   },
 
   updateRelationship: (id, data) => {
@@ -310,7 +310,7 @@ export const useErDiagramStore = create<ErDiagramState>((set, get) => ({
         s.selectedRelationshipId === id ? null : s.selectedRelationshipId,
     }));
     get().syncSchemasToCode();
-    get().syncToMainStore();
+    get().applyLayout();
   },
 
   // ── Selection ─────────────────────────────────────────────────
@@ -353,7 +353,7 @@ export const useErDiagramStore = create<ErDiagramState>((set, get) => ({
       };
     });
     set({ schemas: mergedSchemas, relationships });
-    get().syncToMainStore();
+    get().applyLayout();
   },
 
   syncSchemasToCode: () => {

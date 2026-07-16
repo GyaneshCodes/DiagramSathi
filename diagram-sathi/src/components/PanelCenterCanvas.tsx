@@ -8,6 +8,7 @@ import {
   useReactFlow,
   useInternalNode,
   getSmoothStepPath,
+  getBezierPath,
   BaseEdge,
   EdgeLabelRenderer,
   type EdgeProps,
@@ -261,8 +262,139 @@ const FloatingSmoothStepEdge = ({
   }
 };
 
+// Custom Floating Bezier Edge
+const FloatingBezierEdge = ({
+  id,
+  source,
+  target,
+  label,
+  markerEnd,
+  style,
+  data,
+}: EdgeProps) => {
+  const sourceNode = useInternalNode(source);
+  const targetNode = useInternalNode(target);
+
+  if (
+    !sourceNode ||
+    !targetNode ||
+    !sourceNode.internals ||
+    !targetNode.internals
+  ) {
+    return null;
+  }
+
+  try {
+    const pairIndex = (data?.pairIndex as number) ?? 0;
+    const pairTotal = (data?.pairTotal as number) ?? 1;
+
+    const { sx, sy, tx, ty, sourcePos, targetPos } = getEdgeParams(
+      sourceNode,
+      targetNode,
+      pairIndex,
+      pairTotal,
+    );
+
+    // Safety: prevent zero-length paths that can crash some renderers
+    if (sx === tx && sy === ty) return null;
+
+    const [edgePath, labelX, labelY] = getBezierPath({
+      sourceX: sx,
+      sourceY: sy,
+      sourcePosition: sourcePos,
+      targetX: tx,
+      targetY: ty,
+      targetPosition: targetPos,
+    });
+
+    return (
+      <>
+        <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={style} />
+        {label && (
+          <EdgeLabelRenderer>
+            {(() => {
+              // --- Dynamic Geometry-Aware Label Translating ---
+              const EDGE_SPACING = 18;
+              const offsetAmount =
+                pairTotal <= 1 ? 0 : (pairIndex - (pairTotal - 1) / 2) * EDGE_SPACING;
+
+              // Spacings and offsets
+              const VERTICAL_EDGE_HORIZONTAL_OFFSET = 45;
+              const HORIZONTAL_EDGE_TOP_OFFSET = -8;
+              const HORIZONTAL_EDGE_BOTTOM_OFFSET = 8;
+
+              let translateXPercent = -50;
+              let translateYPercent = -100;
+              let additionalX = 0;
+              let additionalY = -4;
+
+              const isVertical = sourcePos === Position.Top || sourcePos === Position.Bottom;
+
+              if (isVertical) {
+                if (pairTotal > 1) {
+                  if (offsetAmount < 0) {
+                    additionalX = -VERTICAL_EDGE_HORIZONTAL_OFFSET;
+                    translateYPercent = -50;
+                    additionalY = 0;
+                  } else if (offsetAmount > 0) {
+                    additionalX = VERTICAL_EDGE_HORIZONTAL_OFFSET;
+                    translateYPercent = -50;
+                    additionalY = 0;
+                  } else {
+                    additionalX = 0;
+                    translateYPercent = -50;
+                    additionalY = 0;
+                  }
+                }
+              } else {
+                if (pairTotal > 1) {
+                  if (offsetAmount < 0) {
+                    translateYPercent = -100;
+                    additionalY = HORIZONTAL_EDGE_TOP_OFFSET;
+                  } else if (offsetAmount > 0) {
+                    translateYPercent = 0;
+                    additionalY = HORIZONTAL_EDGE_BOTTOM_OFFSET;
+                  } else {
+                    translateYPercent = -50;
+                    additionalY = 0;
+                  }
+                }
+              }
+
+              const transformStyle = `translate(${translateXPercent}%, ${translateYPercent}%) translate(${labelX + additionalX}px, ${labelY + additionalY}px)`;
+
+              return (
+                <div
+                  style={{
+                    position: "absolute",
+                    transform: transformStyle,
+                    padding: "4px 4px",
+                    borderRadius: 4,
+                    fontSize: 12,
+                    fontWeight: 500,
+                    background: "var(--edge-label-bg)",
+                    color: "var(--edge-label-text)",
+                    pointerEvents: "all",
+                  }}
+                  className="nodrag nopan"
+                >
+                  {label}
+                </div>
+              );
+            })()}
+          </EdgeLabelRenderer>
+        )}
+      </>
+    );
+  } catch (err) {
+    console.error("Floating Bezier Edge Render Error:", err);
+    return null;
+  }
+};
+
 const edgeTypes = {
   smoothstep: FloatingSmoothStepEdge,
+  bezier: FloatingBezierEdge,
   "elk-polyline": ElkPolylineEdge,
   "er-relationship": ErRelationshipEdge,
 };
@@ -384,9 +516,11 @@ const PaneCenterCanvasInner = () => {
           target: e.target,
           label: e.label,
           type:
-            diagramType === "dfd" && hasElkRouting
-              ? "elk-polyline"
-              : "smoothstep",
+            diagramType === "flowchart"
+              ? (hasElkRouting ? "elk-polyline" : "bezier")
+              : (diagramType === "dfd" && hasElkRouting
+                  ? "elk-polyline"
+                  : "smoothstep"),
           animated: e.animated,
           data: {
             pairIndex,
@@ -592,6 +726,8 @@ const PaneCenterCanvasInner = () => {
         <ReactFlow
           nodes={nodes}
           edges={edges}
+          nodesDraggable={true}
+          nodesConnectable={false}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
