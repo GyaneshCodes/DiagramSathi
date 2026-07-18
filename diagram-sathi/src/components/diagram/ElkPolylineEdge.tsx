@@ -132,11 +132,11 @@ export const ElkPolylineEdge = ({
               borderRadius: 4,
               fontSize: 12,
               fontWeight: 500,
-              background: "#1e293b",
-              color: "#e2e8f0",
+              background: "var(--edge-label-bg)",
+              color: "var(--edge-label-text)",
               pointerEvents: "all",
               whiteSpace: "nowrap",
-              border: "1px solid #334155",
+              border: "1px solid var(--border-color)",
             }}
             className="nodrag nopan"
           >

@@ -1,4 +1,6 @@
 import { useDiagramStore } from "../../store/useDiagramStore";
+import type { DiagramThemeType } from "../../utils/diagramThemes";
+import { useTheme } from "../../context/ThemeContext";
 import {
   Palette,
   Share2,
@@ -24,16 +26,23 @@ export const RightPropertiesPanel = () => {
   const {
     selectedNodeId,
     selectedEdgeId,
+    selectedNodeIds,
     nodes,
     edges,
     updateNode,
+    updateNodes,
     updateEdge,
     showCodeInRightPanel,
     setShowCodeInRightPanel,
     direction,
     setDirection,
     diagramType,
+    diagramTheme,
+    setDiagramTheme,
   } = useDiagramStore();
+
+  const { theme } = useTheme();
+  const defaultFillColor = theme === "light" ? "#ffffff" : "#1e293b";
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
   const selectedEdge = edges.find((e) => e.id === selectedEdgeId);
@@ -77,7 +86,7 @@ export const RightPropertiesPanel = () => {
 
       <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-6">
         {/* State: Empty Selection (Global Settings) */}
-        {!selectedNode && !selectedEdge && diagramType !== "er" && (
+        {!selectedNode && !selectedEdge && selectedNodeIds.length <= 1 && diagramType !== "er" && (
           <div className="flex flex-col gap-4 animate-in fade-in duration-200">
             <div>
               <label className="text-[10px] font-bold text-neutral/40 uppercase tracking-wider mb-2 flex items-center gap-1">
@@ -90,6 +99,24 @@ export const RightPropertiesPanel = () => {
               >
                 <option value="TB">Top-Down (TB)</option>
                 <option value="LR">Left-Right (LR)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-[10px] font-bold text-neutral/40 uppercase tracking-wider mb-2 flex items-center gap-1">
+                <Palette size={12} /> Diagram Theme
+              </label>
+              <select
+                value={diagramTheme}
+                onChange={(e) => setDiagramTheme(e.target.value as DiagramThemeType)}
+                className="w-full text-xs bg-bg border border-border/80 rounded block p-2 text-neutral outline-none focus:border-primary cursor-pointer"
+              >
+                <option value="default">Default (Individual Colors)</option>
+                <option value="classic">Classic (Black & White)</option>
+                <option value="navy">Navy Slate</option>
+                <option value="forest">Emerald Forest</option>
+                <option value="amber">Retro Amber</option>
+                <option value="blueprint">Blueprint</option>
               </select>
             </div>
 
@@ -106,7 +133,7 @@ export const RightPropertiesPanel = () => {
         {diagramType === "er" && <ErRightPanel />}
 
         {/* State: Node Selected (DFD / Flowchart only) */}
-        {selectedNode && diagramType !== "er" && (
+        {selectedNode && selectedNodeIds.length === 1 && diagramType !== "er" && (
           <div className="flex flex-col gap-5 animate-in fade-in slide-in-from-right-2 duration-200">
             <div>
               <label className="text-[10px] font-bold text-neutral/40 uppercase tracking-wider mb-1.5 flex items-center gap-1">
@@ -159,6 +186,11 @@ export const RightPropertiesPanel = () => {
               </select>
             </div>
 
+            {diagramTheme !== "default" && (
+              <div className="bg-amber-500/10 text-amber-500 text-[10px] p-2.5 rounded border border-amber-500/25 mb-1">
+                ⚠️ Individual colors are overridden by the active Diagram Theme ({diagramTheme.charAt(0).toUpperCase() + diagramTheme.slice(1)}).
+              </div>
+            )}
             <div>
               <label className="text-[10px] font-bold text-neutral/40 uppercase tracking-wider mb-1.5 flex items-center gap-1">
                 <Palette size={12} /> Theme Color
@@ -194,7 +226,7 @@ export const RightPropertiesPanel = () => {
                     checked={selectedNode.fillColor === "transparent"}
                     onChange={(e) =>
                       updateNode(selectedNode.id, {
-                        fillColor: e.target.checked ? "transparent" : "#1e293b",
+                        fillColor: e.target.checked ? "transparent" : defaultFillColor,
                       })
                     }
                     className="rounded border-border/80 text-primary focus:ring-0 cursor-pointer w-3 h-3"
@@ -206,7 +238,7 @@ export const RightPropertiesPanel = () => {
                 <div className="flex items-center gap-2 animate-in fade-in duration-200">
                   <input
                     type="color"
-                    value={selectedNode.fillColor || "#1e293b"}
+                    value={selectedNode.fillColor || defaultFillColor}
                     onChange={(e) =>
                       updateNode(selectedNode.id, { fillColor: e.target.value })
                     }
@@ -214,7 +246,7 @@ export const RightPropertiesPanel = () => {
                   />
                   <input
                     type="text"
-                    value={selectedNode.fillColor || "#1e293b"}
+                    value={selectedNode.fillColor || defaultFillColor}
                     onChange={(e) =>
                       updateNode(selectedNode.id, { fillColor: e.target.value })
                     }
@@ -222,6 +254,63 @@ export const RightPropertiesPanel = () => {
                   />
                 </div>
               )}
+            </div>
+
+            <div>
+              <label className="text-[10px] font-bold text-neutral/40 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                <Type size={12} /> Font Style
+              </label>
+              <div className="flex items-center gap-2">
+                <select
+                  value={selectedNode.fontSize || 14}
+                  onChange={(e) => {
+                    updateNode(selectedNode.id, { fontSize: parseInt(e.target.value) });
+                    useDiagramStore.getState().applyLayoutAsync();
+                  }}
+                  className="flex-1 text-xs bg-bg border border-border/80 rounded p-1.5 text-neutral outline-none focus:border-primary cursor-pointer"
+                >
+                  <option value={12}>12 px</option>
+                  <option value={14}>14 px</option>
+                  <option value={16}>16 px</option>
+                  <option value={18}>18 px</option>
+                  <option value={20}>20 px</option>
+                  <option value={24}>24 px</option>
+                </select>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const isBold = selectedNode.fontBold !== false;
+                    updateNode(selectedNode.id, { fontBold: !isBold });
+                    useDiagramStore.getState().applyLayoutAsync();
+                  }}
+                  className={`px-3 py-1.5 text-xs font-bold rounded border transition-all cursor-pointer ${
+                    selectedNode.fontBold !== false
+                      ? "bg-primary text-white border-primary shadow-sm"
+                      : "bg-bg text-neutral border-border/80 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                  }`}
+                  title="Bold"
+                >
+                  B
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const isItalic = !!selectedNode.fontItalic;
+                    updateNode(selectedNode.id, { fontItalic: !isItalic });
+                    useDiagramStore.getState().applyLayoutAsync();
+                  }}
+                  className={`px-3 py-1.5 text-xs italic rounded border transition-all cursor-pointer ${
+                    selectedNode.fontItalic
+                      ? "bg-primary text-white border-primary shadow-sm"
+                      : "bg-bg text-neutral border-border/80 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                  }`}
+                  title="Italic"
+                >
+                  I
+                </button>
+              </div>
             </div>
 
             <div className="pt-2">
@@ -234,6 +323,231 @@ export const RightPropertiesPanel = () => {
             </div>
           </div>
         )}
+
+        {/* State: Batch Node Selection (DFD / Flowchart only) */}
+        {selectedNodeIds.length > 1 && diagramType !== "er" && (() => {
+          const firstSelectedNode = nodes.find(n => n.id === selectedNodeIds[0]);
+          
+          const allSameType = selectedNodeIds.every(id => {
+            const node = nodes.find(n => n.id === id);
+            return node?.type === firstSelectedNode?.type;
+          });
+          const batchType = allSameType ? firstSelectedNode?.type : "";
+
+          const allSameColor = selectedNodeIds.every(id => {
+            const node = nodes.find(n => n.id === id);
+            return (node?.color || "#6366f1") === (firstSelectedNode?.color || "#6366f1");
+          });
+          const batchColor = allSameColor ? (firstSelectedNode?.color || "#6366f1") : "#6366f1";
+
+          const allSameFillColor = selectedNodeIds.every(id => {
+            const node = nodes.find(n => n.id === id);
+            return (node?.fillColor || defaultFillColor) === (firstSelectedNode?.fillColor || defaultFillColor);
+          });
+          const batchFillColor = allSameFillColor ? (firstSelectedNode?.fillColor || defaultFillColor) : defaultFillColor;
+
+          const allTransparent = selectedNodeIds.every(id => {
+            const node = nodes.find(n => n.id === id);
+            return node?.fillColor === "transparent";
+          });
+
+          const allSameFontSize = selectedNodeIds.every(id => {
+            const node = nodes.find(n => n.id === id);
+            return (node?.fontSize || 14) === (firstSelectedNode?.fontSize || 14);
+          });
+          const batchFontSize = allSameFontSize ? (firstSelectedNode?.fontSize || 14) : 14;
+
+          const allBold = selectedNodeIds.every(id => {
+            const node = nodes.find(n => n.id === id);
+            return node?.fontBold !== false;
+          });
+
+          const allItalic = selectedNodeIds.every(id => {
+            const node = nodes.find(n => n.id === id);
+            return !!node?.fontItalic;
+          });
+
+          return (
+            <div className="flex flex-col gap-5 animate-in fade-in slide-in-from-right-2 duration-200">
+              <div className="bg-primary/5 p-3 rounded border border-primary/20 flex flex-col gap-1">
+                <span className="text-[11px] font-bold text-primary flex items-center gap-1.5">
+                  <Box size={14} /> Batch Editing
+                </span>
+                <span className="text-[10px] text-neutral/50">
+                  Modifying {selectedNodeIds.length} nodes simultaneously.
+                </span>
+              </div>
+
+              {/* Symbol Type */}
+              <div>
+                <label className="text-[10px] font-bold text-neutral/40 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                  <Box size={12} /> Symbol Type
+                </label>
+                <select
+                  value={batchType}
+                  onChange={(e) => updateNodes(selectedNodeIds, { type: e.target.value as any })}
+                  className="w-full text-xs bg-bg border border-border/80 rounded block p-2 text-neutral outline-none focus:border-primary cursor-pointer"
+                >
+                  {!allSameType && (
+                    <option value="" disabled hidden>
+                      Mixed Types
+                    </option>
+                  )}
+                  {diagramType === "dfd" ? (
+                    <>
+                      <option value="process">Process (Circle)</option>
+                      <option value="entity">External Entity (Rectangle)</option>
+                      <option value="datastore">Data Store (Open Rectangle)</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="rectangle">Process (Rectangle)</option>
+                      <option value="circle">Start / End (Circle)</option>
+                      <option value="diamond">Decision (Diamond)</option>
+                      <option value="parallelogram">Input / Output (Parallelogram)</option>
+                      <option value="hexagon">Preparation (Hexagon)</option>
+                      <option value="cylinder">Database (Cylinder)</option>
+                      <option value="stadium">Stadium / Pill</option>
+                      <option value="square">Square</option>
+                    </>
+                  )}
+                </select>
+              </div>
+
+              {diagramTheme !== "default" && (
+                <div className="bg-amber-500/10 text-amber-500 text-[10px] p-2.5 rounded border border-amber-500/25 mb-1">
+                  ⚠️ Individual colors are overridden by the active Diagram Theme ({diagramTheme.charAt(0).toUpperCase() + diagramTheme.slice(1)}).
+                </div>
+              )}
+              {/* Accent/Border Color */}
+              <div>
+                <label className="text-[10px] font-bold text-neutral/40 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                  <Palette size={12} /> Accent Color
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={batchColor}
+                    onChange={(e) => updateNodes(selectedNodeIds, { color: e.target.value })}
+                    className="w-8 h-8 rounded border border-border/80 bg-bg p-0.5 cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    value={allSameColor ? batchColor : ""}
+                    placeholder={allSameColor ? "" : "Mixed Colors"}
+                    onChange={(e) => {
+                      if (e.target.value.match(/^#[0-9A-Fa-f]{6}$/)) {
+                        updateNodes(selectedNodeIds, { color: e.target.value });
+                      }
+                    }}
+                    className="flex-1 text-[10px] font-mono bg-bg border border-border/80 rounded p-1.5 text-neutral outline-none focus:border-primary uppercase"
+                  />
+                </div>
+              </div>
+
+              {/* Node Fill */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-[10px] font-bold text-neutral/40 uppercase tracking-wider flex items-center gap-1">
+                    <Palette size={12} /> Node Fill
+                  </label>
+                  <label className="flex items-center gap-1 text-[10px] text-neutral/60 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={allTransparent}
+                      onChange={(e) =>
+                        updateNodes(selectedNodeIds, {
+                          fillColor: e.target.checked ? "transparent" : defaultFillColor,
+                        })
+                      }
+                      className="rounded border-border/80 text-primary focus:ring-0 cursor-pointer w-3 h-3"
+                    />
+                    Transparent
+                  </label>
+                </div>
+                {!allTransparent && (
+                  <div className="flex items-center gap-2 animate-in fade-in duration-200">
+                    <input
+                      type="color"
+                      value={batchFillColor === "transparent" ? defaultFillColor : batchFillColor}
+                      onChange={(e) => updateNodes(selectedNodeIds, { fillColor: e.target.value })}
+                      className="w-8 h-8 rounded border border-border/80 bg-bg p-0.5 cursor-pointer"
+                    />
+                    <input
+                      type="text"
+                      value={allSameFillColor && batchFillColor !== "transparent" ? batchFillColor : ""}
+                      placeholder={allSameFillColor && batchFillColor !== "transparent" ? "" : "Mixed Fills"}
+                      onChange={(e) => {
+                        if (e.target.value.match(/^#[0-9A-Fa-f]{6}$/)) {
+                          updateNodes(selectedNodeIds, { fillColor: e.target.value });
+                        }
+                      }}
+                      className="flex-1 text-[10px] font-mono bg-bg border border-border/80 rounded p-1.5 text-neutral outline-none focus:border-primary uppercase"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Font Style */}
+              <div>
+                <label className="text-[10px] font-bold text-neutral/40 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                  <Type size={12} /> Font Style
+                </label>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={allSameFontSize ? batchFontSize : ""}
+                    onChange={(e) => {
+                      updateNodes(selectedNodeIds, { fontSize: parseInt(e.target.value) });
+                    }}
+                    className="flex-1 text-xs bg-bg border border-border/80 rounded p-1.5 text-neutral outline-none focus:border-primary cursor-pointer"
+                  >
+                    {!allSameFontSize && (
+                      <option value="" disabled hidden>
+                        Mixed Sizes
+                      </option>
+                    )}
+                    <option value={12}>12 px</option>
+                    <option value={14}>14 px</option>
+                    <option value={16}>16 px</option>
+                    <option value={18}>18 px</option>
+                    <option value={20}>20 px</option>
+                    <option value={24}>24 px</option>
+                  </select>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      updateNodes(selectedNodeIds, { fontBold: !allBold });
+                    }}
+                    className={`px-3 py-1.5 text-xs font-bold rounded border transition-all cursor-pointer ${
+                      allBold
+                        ? "bg-primary text-white border-primary shadow-sm"
+                        : "bg-bg text-neutral border-border/80 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                    }`}
+                    title="Bold"
+                  >
+                    B
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      updateNodes(selectedNodeIds, { fontItalic: !allItalic });
+                    }}
+                    className={`px-3 py-1.5 text-xs italic rounded border transition-all cursor-pointer ${
+                      allItalic
+                        ? "bg-primary text-white border-primary shadow-sm"
+                        : "bg-bg text-neutral border-border/80 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                    }`}
+                    title="Italic"
+                  >
+                    I
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* State: Edge Selected (DFD / Flowchart only) */}
         {selectedEdge && diagramType !== "er" && (

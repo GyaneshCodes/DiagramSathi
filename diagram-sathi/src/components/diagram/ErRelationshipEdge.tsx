@@ -145,7 +145,7 @@ export const ErRelationshipEdge = ({
             }}
             className="nodrag nopan z-10"
           >
-            <span className="text-[12px] font-bold text-slate-300 bg-slate-900 border border-slate-700/50 px-2 py-0.5 rounded shadow-sm">
+            <span className="text-[12px] font-bold text-neutral bg-panel border border-border px-2 py-0.5 rounded shadow-sm">
               {sourceLabel}
             </span>
           </div>
@@ -158,7 +158,7 @@ export const ErRelationshipEdge = ({
             }}
             className="nodrag nopan z-10"
           >
-            <span className="text-[12px] font-bold text-slate-300 bg-slate-900 border border-slate-700/50 px-2 py-0.5 rounded shadow-sm">
+            <span className="text-[12px] font-bold text-neutral bg-panel border border-border px-2 py-0.5 rounded shadow-sm">
               {targetLabel}
             </span>
           </div>

@@ -32,6 +32,8 @@ import {
 import { RefreshCw } from "lucide-react";
 import { useErDiagramStore } from "../store/useErDiagramStore";
 import { getNodeDimensions } from "../utils/layoutConfiguration";
+import { getDiagramThemeStyles } from "../utils/diagramThemes";
+import { useTheme } from "../context/ThemeContext";
 import { TopToolbar } from "./ui/TopToolbar";
 import { nodeTypes } from "./diagram/Nodes";
 import { ElkPolylineEdge } from "./diagram/ElkPolylineEdge";
@@ -413,11 +415,15 @@ const PaneCenterCanvasInner = () => {
   );
   const storeAddEdge = useDiagramStore((s) => s.addEdge);
   const removeNode = useDiagramStore((s) => s.removeNode);
+  const { theme: appTheme } = useTheme();
   const removeEdge = useDiagramStore((s) => s.removeEdge);
 
   const activeTool = useDiagramStore((s) => s.activeTool);
   const selectedNodeId = useDiagramStore((s) => s.selectedNodeId);
   const selectedEdgeId = useDiagramStore((s) => s.selectedEdgeId);
+  const selectedNodeIds = useDiagramStore((s) => s.selectedNodeIds);
+  const selectedEdgeIds = useDiagramStore((s) => s.selectedEdgeIds);
+  const diagramTheme = useDiagramStore((s) => s.diagramTheme);
   const setSelectedNodeId = useDiagramStore((s) => s.setSelectedNodeId);
   const setSelectedEdgeId = useDiagramStore((s) => s.setSelectedEdgeId);
   const isExporting = useDiagramStore((s) => s.isExporting);
@@ -466,7 +472,15 @@ const PaneCenterCanvasInner = () => {
           position: { x: posX, y: posY },
           width: dims.width,
           height: dims.height,
-          data: { label: n.label, color: n.color, fillColor: n.fillColor },
+          selected: selectedNodeIds.includes(n.id),
+          data: { 
+            label: n.label, 
+            color: n.color, 
+            fillColor: n.fillColor,
+            fontSize: n.fontSize,
+            fontBold: n.fontBold,
+            fontItalic: n.fontItalic
+          },
           draggable: !isErContainer,
           selectable: !isErContainer,
           style: isErContainer ? { width: dims.width, height: dims.height, zIndex: -1 } : undefined,
@@ -488,20 +502,24 @@ const PaneCenterCanvasInner = () => {
         const pairIndex = pairSeen.get(key) ?? 0;
         pairSeen.set(key, pairIndex + 1);
 
+        const themeStyles = getDiagramThemeStyles(diagramTheme, appTheme);
+        const edgeStroke = themeStyles ? themeStyles.edgeColor : "var(--edge-color)";
+
         // ER diagrams use their own edge type
         if (diagramType === "er") {
           return {
             id: e.id,
             source: e.source,
             target: e.target,
+            selected: selectedEdgeIds.includes(e.id),
             type: "er-relationship",
             data: {},
             markerEnd: {
               type: MarkerType.ArrowClosed,
-              color: "var(--edge-color)",
+              color: edgeStroke,
             },
             style: {
-              stroke: "var(--edge-color)",
+              stroke: edgeStroke,
               strokeWidth: 2,
             },
           };
@@ -515,6 +533,7 @@ const PaneCenterCanvasInner = () => {
           source: e.source,
           target: e.target,
           label: e.label,
+          selected: selectedEdgeIds.includes(e.id),
           type:
             diagramType === "flowchart"
               ? (hasElkRouting ? "elk-polyline" : "bezier")
@@ -531,10 +550,10 @@ const PaneCenterCanvasInner = () => {
           },
           markerEnd: {
             type: MarkerType.ArrowClosed,
-            color: "var(--edge-color)",
+            color: edgeStroke,
           },
           style: {
-            stroke: "var(--edge-color)",
+            stroke: edgeStroke,
             strokeWidth: 2,
             strokeDasharray:
               e.style === "dashed"
@@ -561,6 +580,7 @@ const PaneCenterCanvasInner = () => {
       console.error("Canvas Mapping Error:", err);
       setError("Error mapping AST to Canvas");
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     astNodes,
     astEdges,
@@ -633,6 +653,12 @@ const PaneCenterCanvasInner = () => {
       useErDiagramStore.getState().setSelectedRelationshipId(null);
     }
   }, [setSelectedNodeId, setSelectedEdgeId, diagramType]);
+
+  const onSelectionChange = useCallback(({ nodes, edges }: { nodes: Node[]; edges: Edge[] }) => {
+    const nodeIds = nodes.map((n) => n.id);
+    const edgeIds = edges.map((e) => e.id);
+    useDiagramStore.getState().setSelectedSelection(nodeIds, edgeIds);
+  }, []);
 
   const onNodesDelete = useCallback(
     (deletedNodes: Node[]) => {
@@ -733,6 +759,7 @@ const PaneCenterCanvasInner = () => {
           onConnect={onConnect}
           onNodeClick={onNodeClick}
           onEdgeClick={onEdgeClick}
+          onSelectionChange={onSelectionChange}
           onNodesDelete={onNodesDelete}
           onEdgesDelete={onEdgesDelete}
           onPaneClick={onPaneClick}

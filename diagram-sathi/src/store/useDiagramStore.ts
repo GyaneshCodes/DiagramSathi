@@ -6,6 +6,7 @@ import { getLayoutedElements } from "../utils/layoutGraph";
 import { measureNodes } from "../utils/measureNodes";
 import type { ReactFlowInstance } from "@xyflow/react";
 import { parseMermaidCode, serializeAstToMermaid } from "../utils/mermaidParser";
+import type { DiagramThemeType } from "../utils/diagramThemes";
 
 // Basic structure for our Abstract Syntax Tree (AST) representing a DFD diagram.
 export interface DfdNode {
@@ -18,6 +19,9 @@ export interface DfdNode {
   parentId?: string;
   color?: string;
   fillColor?: string;
+  fontSize?: number;
+  fontBold?: boolean;
+  fontItalic?: boolean;
 }
 
 export interface DfdEdge {
@@ -51,6 +55,8 @@ interface DiagramState {
   activeTool: "cursor" | "pan";
   selectedNodeId: string | null;
   selectedEdgeId: string | null;
+  selectedNodeIds: string[];
+  selectedEdgeIds: string[];
   isExporting: boolean;
   leftPanelCollapsed: boolean;
   rightPanelCollapsed: boolean;
@@ -60,6 +66,7 @@ interface DiagramState {
   latestGeneratedNodeIds: string[];
   projectStatus: "draft" | "active" | "trashed";
   reactFlowInstance: ReactFlowInstance | null;
+  diagramTheme: DiagramThemeType;
 
   // Actions
   setNodes: (nodes: DfdNode[]) => void;
@@ -74,6 +81,7 @@ interface DiagramState {
   setActiveTool: (tool: "cursor" | "pan") => void;
   setSelectedNodeId: (id: string | null) => void;
   setSelectedEdgeId: (id: string | null) => void;
+  setSelectedSelection: (nodeIds: string[], edgeIds: string[]) => void;
   setIsExporting: (exporting: boolean) => void;
   setLeftPanelCollapsed: (collapsed: boolean) => void;
   setRightPanelCollapsed: (collapsed: boolean) => void;
@@ -81,10 +89,12 @@ interface DiagramState {
   setDirection: (dir: "TB" | "LR") => void;
   setMermaidCode: (code: string) => void;
   setReactFlowInstance: (instance: ReactFlowInstance | null) => void;
+  setDiagramTheme: (theme: DiagramThemeType) => void;
   
   addNode: (node: Partial<DfdNode>) => void;
   addEdge: (edge: Partial<DfdEdge>) => void;
   updateNode: (id: string, data: Partial<DfdNode>) => void;
+  updateNodes: (ids: string[], data: Partial<DfdNode>) => void;
   updateEdge: (id: string, data: Partial<DfdEdge>) => void;
   removeNode: (id: string) => void;
   removeEdge: (id: string) => void;
@@ -114,6 +124,8 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   activeTool: "cursor",
   selectedNodeId: null,
   selectedEdgeId: null,
+  selectedNodeIds: [],
+  selectedEdgeIds: [],
   isExporting: false,
   leftPanelCollapsed: false,
   rightPanelCollapsed: false,
@@ -123,6 +135,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   latestGeneratedNodeIds: [],
   projectStatus: "active",
   reactFlowInstance: null,
+  diagramTheme: "default",
 
   setNodes: (nodes) => set({ nodes }),
   setEdges: (edges) => set({ edges }),
@@ -137,11 +150,37 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   setSelectedNodeId: (id) => set((state) => ({
     selectedNodeId: id,
     selectedEdgeId: id ? null : state.selectedEdgeId,
+    selectedNodeIds: id ? [id] : [],
+    selectedEdgeIds: id ? [] : state.selectedEdgeIds,
   })),
   setSelectedEdgeId: (id) => set((state) => ({
     selectedEdgeId: id,
     selectedNodeId: id ? null : state.selectedNodeId,
+    selectedEdgeIds: id ? [id] : [],
+    selectedNodeIds: id ? [] : state.selectedNodeIds,
   })),
+  setSelectedSelection: (nodeIds, edgeIds) => {
+    const { selectedNodeIds, selectedEdgeIds } = get();
+    
+    const nodesSet = new Set(selectedNodeIds);
+    const nodesEqual = 
+      selectedNodeIds.length === nodeIds.length &&
+      nodeIds.every((id) => nodesSet.has(id));
+      
+    const edgesSet = new Set(selectedEdgeIds);
+    const edgesEqual = 
+      selectedEdgeIds.length === edgeIds.length &&
+      edgeIds.every((id) => edgesSet.has(id));
+      
+    if (nodesEqual && edgesEqual) return;
+
+    set({
+      selectedNodeIds: nodeIds,
+      selectedEdgeIds: edgeIds,
+      selectedNodeId: nodeIds.length === 1 ? nodeIds[0] : null,
+      selectedEdgeId: edgeIds.length === 1 ? edgeIds[0] : null,
+    });
+  },
   setIsExporting: (isExporting) => set({ isExporting }),
   setLeftPanelCollapsed: (leftPanelCollapsed) => set({ leftPanelCollapsed }),
   setRightPanelCollapsed: (rightPanelCollapsed) => set({ rightPanelCollapsed }),
@@ -152,6 +191,10 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   },
   setMermaidCode: (mermaidCode) => set({ mermaidCode }),
   setReactFlowInstance: (instance) => set({ reactFlowInstance: instance }),
+  setDiagramTheme: (diagramTheme) => {
+    set({ diagramTheme });
+    get().applyLayoutAsync();
+  },
 
   addNode: (node) => {
     const { nodes } = get();
@@ -213,6 +256,14 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
     get().syncAstToCode();
   },
 
+  updateNodes: (ids, data) => {
+    set((state) => ({
+      nodes: state.nodes.map((n) => (ids.includes(n.id) ? { ...n, ...data } : n)),
+    }));
+    get().applyLayoutAsync();
+    get().syncAstToCode();
+  },
+
   updateEdge: (id, data) => {
     set((state) => ({
       edges: state.edges.map((e) => (e.id === id ? { ...e, ...data } : e)),
@@ -230,6 +281,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       nodes: state.nodes.filter((n) => n.id !== id),
       edges: state.edges.filter((e) => e.source !== id && e.target !== id),
       selectedNodeId: state.selectedNodeId === id ? null : state.selectedNodeId,
+      selectedNodeIds: state.selectedNodeIds.filter((nid) => nid !== id),
     }));
     
     if (get().diagramType !== "er") {
@@ -242,6 +294,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
     set((state) => ({
       edges: state.edges.filter((e) => e.id !== id),
       selectedEdgeId: state.selectedEdgeId === id ? null : state.selectedEdgeId,
+      selectedEdgeIds: state.selectedEdgeIds.filter((eid) => eid !== id),
     }));
     
     if (get().diagramType !== "er") {

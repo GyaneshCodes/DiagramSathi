@@ -7,6 +7,7 @@ import {
 } from "@xyflow/react";
 import { useDiagramStore } from "../../store/useDiagramStore";
 import { useTheme } from "../../context/ThemeContext";
+import { getDiagramThemeStyles } from "../../utils/diagramThemes";
 
 // Helper to determine text color (light or dark) based on background hex color
 export const getContrastTextColor = (hexColor: string, appTheme: "dark" | "light" = "dark") => {
@@ -30,6 +31,32 @@ export const getContrastTextColor = (hexColor: string, appTheme: "dark" | "light
 
   const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
   return luminance > 0.5 ? "text-slate-900" : "text-slate-200";
+};
+
+export const useDiagramNodeStyles = (data: any) => {
+  const diagramTheme = useDiagramStore((state) => state.diagramTheme);
+  const { theme: appTheme } = useTheme();
+  
+  const customColor = (data.color as string) || "#6366f1";
+  const defaultFillColor = appTheme === "light" ? "#ffffff" : "#1e293b";
+  const customFillColor = (data.fillColor as string) || defaultFillColor;
+  
+  const themeStyles = getDiagramThemeStyles(diagramTheme, appTheme);
+  
+  if (themeStyles) {
+    const textColorClass = themeStyles.textColor === "#ffffff" ? "text-slate-200" : (themeStyles.textColor === "#000000" ? "text-slate-950" : getContrastTextColor(themeStyles.fillColor, appTheme));
+    return {
+      color: themeStyles.borderColor,
+      fillColor: themeStyles.fillColor,
+      textColorClass,
+    };
+  }
+  
+  return {
+    color: customColor,
+    fillColor: customFillColor,
+    textColorClass: getContrastTextColor(customFillColor, appTheme),
+  };
 };
 
 const handleClass =
@@ -226,10 +253,10 @@ const svgPathClasses =
 const RectangleNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
   const diagramType = useDiagramStore((state) => state.diagramType);
-  const color = (data.color as string) || "#6366f1";
-  const fillColor = (data.fillColor as string) || "#1e293b";
-  const { theme } = useTheme();
-  const textColorClass = getContrastTextColor(fillColor, theme);
+  const { color, fillColor, textColorClass } = useDiagramNodeStyles(data);
+  const fontSize = data.fontSize as number | undefined;
+  const fontBold = data.fontBold as boolean | undefined;
+  const fontItalic = data.fontItalic as boolean | undefined;
 
   return (
     <div
@@ -265,7 +292,14 @@ const RectangleNode = ({ data, id, selected }: NodeProps<Node>) => {
           className={svgPathClasses}
         />
       </svg>
-      <div className={`px-6 py-4 text-sm font-bold ${textColorClass} z-10 whitespace-normal relative text-center pointer-events-none max-w-[260px]`}>
+      <div 
+        className={`diagram-text-container px-4 py-2 text-sm font-bold ${textColorClass} z-10 whitespace-normal relative text-center pointer-events-none w-full max-w-[90%] ${data.isMeasuring ? "" : "max-h-[80%] overflow-hidden"} break-words flex items-center justify-center`}
+        style={{
+          fontSize: fontSize ? `${fontSize}px` : undefined,
+          fontWeight: fontBold === undefined ? undefined : (fontBold ? "bold" : "normal"),
+          fontStyle: fontItalic ? "italic" : "normal",
+        }}
+      >
         {String(data.label)}
       </div>
       {renderHandles()}
@@ -276,10 +310,10 @@ const RectangleNode = ({ data, id, selected }: NodeProps<Node>) => {
 const SquareNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
   const diagramType = useDiagramStore((state) => state.diagramType);
-  const color = (data.color as string) || "#6366f1";
-  const fillColor = (data.fillColor as string) || "#1e293b";
-  const { theme } = useTheme();
-  const textColorClass = getContrastTextColor(fillColor, theme);
+  const { color, fillColor, textColorClass } = useDiagramNodeStyles(data);
+  const fontSize = data.fontSize as number | undefined;
+  const fontBold = data.fontBold as boolean | undefined;
+  const fontItalic = data.fontItalic as boolean | undefined;
 
   return (
     <div
@@ -317,7 +351,14 @@ const SquareNode = ({ data, id, selected }: NodeProps<Node>) => {
           className={svgPathClasses}
         />
       </svg>
-      <div className={`px-6 py-6 text-sm font-bold ${textColorClass} whitespace-normal z-10 text-center pointer-events-none max-w-[240px]`}>
+      <div 
+        className={`diagram-text-container px-4 py-4 text-sm font-bold ${textColorClass} whitespace-normal z-10 text-center pointer-events-none w-full max-w-[70%] ${data.isMeasuring ? "" : "max-h-[70%] overflow-hidden"} break-words flex items-center justify-center`}
+        style={{
+          fontSize: fontSize ? `${fontSize}px` : undefined,
+          fontWeight: fontBold === undefined ? undefined : (fontBold ? "bold" : "normal"),
+          fontStyle: fontItalic ? "italic" : "normal",
+        }}
+      >
         {String(data.label)}
       </div>
       {renderHandles()}
@@ -328,10 +369,10 @@ const SquareNode = ({ data, id, selected }: NodeProps<Node>) => {
 const CircleNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
   const diagramType = useDiagramStore((state) => state.diagramType);
-  const color = (data.color as string) || "#6366f1";
-  const fillColor = (data.fillColor as string) || "#1e293b";
-  const { theme } = useTheme();
-  const textColorClass = getContrastTextColor(fillColor, theme);
+  const { color, fillColor, textColorClass } = useDiagramNodeStyles(data);
+  const fontSize = data.fontSize as number | undefined;
+  const fontBold = data.fontBold as boolean | undefined;
+  const fontItalic = data.fontItalic as boolean | undefined;
 
   return (
     <div
@@ -367,7 +408,14 @@ const CircleNode = ({ data, id, selected }: NodeProps<Node>) => {
           className={svgPathClasses}
         />
       </svg>
-      <div className={`px-8 py-8 text-sm font-bold ${textColorClass} whitespace-normal z-10 text-center pointer-events-none max-w-[240px]`}>
+      <div 
+        className={`diagram-text-container px-4 py-4 text-sm font-bold ${textColorClass} whitespace-normal z-10 text-center pointer-events-none w-full max-w-[70%] ${data.isMeasuring ? "" : "max-h-[70%] overflow-hidden"} break-words flex items-center justify-center`}
+        style={{
+          fontSize: fontSize ? `${fontSize}px` : undefined,
+          fontWeight: fontBold === undefined ? undefined : (fontBold ? "bold" : "normal"),
+          fontStyle: fontItalic ? "italic" : "normal",
+        }}
+      >
         {String(data.label)}
       </div>
       {renderHandles()}
@@ -378,10 +426,10 @@ const CircleNode = ({ data, id, selected }: NodeProps<Node>) => {
 const DiamondNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
   const diagramType = useDiagramStore((state) => state.diagramType);
-  const color = (data.color as string) || "#6366f1";
-  const fillColor = (data.fillColor as string) || "#1e293b";
-  const { theme } = useTheme();
-  const textColorClass = getContrastTextColor(fillColor, theme);
+  const { color, fillColor, textColorClass } = useDiagramNodeStyles(data);
+  const fontSize = data.fontSize as number | undefined;
+  const fontBold = data.fontBold as boolean | undefined;
+  const fontItalic = data.fontItalic as boolean | undefined;
 
   return (
     <div
@@ -413,7 +461,14 @@ const DiamondNode = ({ data, id, selected }: NodeProps<Node>) => {
           className={svgPathClasses}
         />
       </svg>
-      <div className={`px-12 py-12 text-sm font-bold ${textColorClass} whitespace-normal max-w-[85%] z-10 text-center pointer-events-none leading-tight`}>
+      <div 
+        className={`diagram-text-container px-2 py-2 text-sm font-bold ${textColorClass} whitespace-normal w-full max-w-[55%] ${data.isMeasuring ? "" : "max-h-[55%] overflow-hidden"} z-10 text-center pointer-events-none leading-tight break-words flex items-center justify-center`}
+        style={{
+          fontSize: fontSize ? `${fontSize}px` : undefined,
+          fontWeight: fontBold === undefined ? undefined : (fontBold ? "bold" : "normal"),
+          fontStyle: fontItalic ? "italic" : "normal",
+        }}
+      >
         {String(data.label)}
       </div>
       {renderHandles({ top: "2%", bottom: "2%", left: "2%", right: "2%" })}
@@ -424,10 +479,10 @@ const DiamondNode = ({ data, id, selected }: NodeProps<Node>) => {
 const ParallelogramNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
   const diagramType = useDiagramStore((state) => state.diagramType);
-  const color = (data.color as string) || "#6366f1";
-  const fillColor = (data.fillColor as string) || "#1e293b";
-  const { theme } = useTheme();
-  const textColorClass = getContrastTextColor(fillColor, theme);
+  const { color, fillColor, textColorClass } = useDiagramNodeStyles(data);
+  const fontSize = data.fontSize as number | undefined;
+  const fontBold = data.fontBold as boolean | undefined;
+  const fontItalic = data.fontItalic as boolean | undefined;
 
   return (
     <div
@@ -459,7 +514,14 @@ const ParallelogramNode = ({ data, id, selected }: NodeProps<Node>) => {
           className={svgPathClasses}
         />
       </svg>
-      <div className={`px-10 py-4 text-sm font-bold ${textColorClass} whitespace-normal max-w-[85%] z-10 text-center pointer-events-none`}>
+      <div 
+        className={`diagram-text-container px-4 py-2 text-sm font-bold ${textColorClass} whitespace-normal w-full max-w-[70%] ${data.isMeasuring ? "" : "max-h-[80%] overflow-hidden"} z-10 text-center pointer-events-none break-words flex items-center justify-center`}
+        style={{
+          fontSize: fontSize ? `${fontSize}px` : undefined,
+          fontWeight: fontBold === undefined ? undefined : (fontBold ? "bold" : "normal"),
+          fontStyle: fontItalic ? "italic" : "normal",
+        }}
+      >
         {String(data.label)}
       </div>
       {renderHandles({ left: "11%", right: "11%" })}
@@ -470,10 +532,10 @@ const ParallelogramNode = ({ data, id, selected }: NodeProps<Node>) => {
 const HexagonNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
   const diagramType = useDiagramStore((state) => state.diagramType);
-  const color = (data.color as string) || "#6366f1";
-  const fillColor = (data.fillColor as string) || "#1e293b";
-  const { theme } = useTheme();
-  const textColorClass = getContrastTextColor(fillColor, theme);
+  const { color, fillColor, textColorClass } = useDiagramNodeStyles(data);
+  const fontSize = data.fontSize as number | undefined;
+  const fontBold = data.fontBold as boolean | undefined;
+  const fontItalic = data.fontItalic as boolean | undefined;
 
   return (
     <div
@@ -505,7 +567,14 @@ const HexagonNode = ({ data, id, selected }: NodeProps<Node>) => {
           className={svgPathClasses}
         />
       </svg>
-      <div className={`px-12 py-4 text-sm font-bold ${textColorClass} whitespace-normal max-w-[85%] z-10 text-center pointer-events-none`}>
+      <div 
+        className={`diagram-text-container px-4 py-2 text-sm font-bold ${textColorClass} whitespace-normal w-full max-w-[75%] ${data.isMeasuring ? "" : "max-h-[80%] overflow-hidden"} z-10 text-center pointer-events-none break-words flex items-center justify-center`}
+        style={{
+          fontSize: fontSize ? `${fontSize}px` : undefined,
+          fontWeight: fontBold === undefined ? undefined : (fontBold ? "bold" : "normal"),
+          fontStyle: fontItalic ? "italic" : "normal",
+        }}
+      >
         {String(data.label)}
       </div>
       {renderHandles({ left: "2%", right: "2%" })}
@@ -516,10 +585,10 @@ const HexagonNode = ({ data, id, selected }: NodeProps<Node>) => {
 const CylinderNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
   const diagramType = useDiagramStore((state) => state.diagramType);
-  const color = (data.color as string) || "#6366f1";
-  const fillColor = (data.fillColor as string) || "#1e293b";
-  const { theme } = useTheme();
-  const textColorClass = getContrastTextColor(fillColor, theme);
+  const { color, fillColor, textColorClass } = useDiagramNodeStyles(data);
+  const fontSize = data.fontSize as number | undefined;
+  const fontBold = data.fontBold as boolean | undefined;
+  const fontItalic = data.fontItalic as boolean | undefined;
 
   return (
     <div
@@ -559,7 +628,14 @@ const CylinderNode = ({ data, id, selected }: NodeProps<Node>) => {
           className="opacity-90 transition-all"
         />
       </svg>
-      <div className={`px-8 py-6 mt-2 text-sm font-bold ${textColorClass} whitespace-normal max-w-[85%] z-10 text-center pointer-events-none`}>
+      <div 
+        className={`diagram-text-container px-4 py-2 mt-4 text-sm font-bold ${textColorClass} whitespace-normal w-full max-w-[80%] ${data.isMeasuring ? "" : "max-h-[65%] overflow-hidden"} z-10 text-center pointer-events-none break-words flex items-center justify-center`}
+        style={{
+          fontSize: fontSize ? `${fontSize}px` : undefined,
+          fontWeight: fontBold === undefined ? undefined : (fontBold ? "bold" : "normal"),
+          fontStyle: fontItalic ? "italic" : "normal",
+        }}
+      >
         {String(data.label)}
       </div>
       {renderHandles({ top: "15%", bottom: "5%", left: "5%", right: "5%" })}
@@ -570,10 +646,10 @@ const CylinderNode = ({ data, id, selected }: NodeProps<Node>) => {
 const StadiumNode = ({ data, id, selected }: NodeProps<Node>) => {
   const updateNode = useDiagramStore((state) => state.updateNode);
   const diagramType = useDiagramStore((state) => state.diagramType);
-  const color = (data.color as string) || "#6366f1";
-  const fillColor = (data.fillColor as string) || "#1e293b";
-  const { theme } = useTheme();
-  const textColorClass = getContrastTextColor(fillColor, theme);
+  const { color, fillColor, textColorClass } = useDiagramNodeStyles(data);
+  const fontSize = data.fontSize as number | undefined;
+  const fontBold = data.fontBold as boolean | undefined;
+  const fontItalic = data.fontItalic as boolean | undefined;
 
   return (
     <div
@@ -596,7 +672,14 @@ const StadiumNode = ({ data, id, selected }: NodeProps<Node>) => {
           updateNode(id, { width, height })
         }
       />
-      <div className={`px-6 py-3 text-sm font-bold ${textColorClass} z-10 whitespace-normal relative text-center pointer-events-none max-w-[260px]`}>
+      <div 
+        className={`diagram-text-container px-4 py-2 text-sm font-bold ${textColorClass} z-10 whitespace-normal relative text-center pointer-events-none w-full max-w-[90%] ${data.isMeasuring ? "" : "max-h-[80%] overflow-hidden"} break-words flex items-center justify-center`}
+        style={{
+          fontSize: fontSize ? `${fontSize}px` : undefined,
+          fontWeight: fontBold === undefined ? undefined : (fontBold ? "bold" : "normal"),
+          fontStyle: fontItalic ? "italic" : "normal",
+        }}
+      >
         {String(data.label)}
       </div>
       {renderHandles()}
