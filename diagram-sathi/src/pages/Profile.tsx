@@ -20,7 +20,7 @@ import {
   Sun,
   ShieldCheck,
   Eye,
-  EyeOff
+  EyeOff,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { getHomeSummary, getUserProjects, type Project } from "../lib/projects";
@@ -37,6 +37,8 @@ export default function Profile() {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState("");
   const [editAvatar, setEditAvatar] = useState("");
+  const [editBio, setEditBio] = useState("");
+  const [editRole, setEditRole] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -54,7 +56,7 @@ export default function Profile() {
     flowchartCount: 0,
     dfdPercent: 0,
     erPercent: 0,
-    flowchartPercent: 0
+    flowchartPercent: 0,
   });
   const [projectsList, setProjectsList] = useState<Project[]>([]);
   const [loadingStats, setLoadingStats] = useState(true);
@@ -64,6 +66,8 @@ export default function Profile() {
     if (profile) {
       setEditName(profile.display_name || "");
       setEditAvatar(profile.avatar_url || "");
+      setEditBio(profile.bio || "");
+      setEditRole(profile.role || "");
     }
   }, [profile]);
 
@@ -74,7 +78,7 @@ export default function Profile() {
         setLoadingStats(true);
         const [homeSummary, allProjects] = await Promise.all([
           getHomeSummary(),
-          getUserProjects()
+          getUserProjects(),
         ]);
 
         const breakdown = homeSummary.typeBreakdown || {};
@@ -90,7 +94,7 @@ export default function Profile() {
           flowchartCount: flowchart,
           dfdPercent: Math.round((dfd / total) * 100),
           erPercent: Math.round((er / total) * 100),
-          flowchartPercent: Math.round((flowchart / total) * 100)
+          flowchartPercent: Math.round((flowchart / total) * 100),
         });
         setProjectsList(allProjects || []);
       } catch (err) {
@@ -104,10 +108,25 @@ export default function Profile() {
 
   // Compute Architect Rank based on actual diagram counts
   const getArchitectRank = (count: number) => {
-    if (count >= 100) return { title: "Systems Maestro", color: "text-amber-400 bg-amber-400/10 border-amber-400/20" };
-    if (count >= 50) return { title: "Principal Architect", color: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20" };
-    if (count >= 10) return { title: "Structural Designer", color: "text-blue-400 bg-blue-400/10 border-blue-400/20" };
-    return { title: "Junior Drafter", color: "text-slate-400 bg-slate-400/10 border-slate-400/20" };
+    if (count >= 100)
+      return {
+        title: "Systems Maestro",
+        color: "text-amber-400 bg-amber-400/10 border-amber-400/20",
+      };
+    if (count >= 50)
+      return {
+        title: "Principal Architect",
+        color: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
+      };
+    if (count >= 10)
+      return {
+        title: "Structural Designer",
+        color: "text-blue-400 bg-blue-400/10 border-blue-400/20",
+      };
+    return {
+      title: "Junior Drafter",
+      color: "text-slate-400 bg-slate-400/10 border-slate-400/20",
+    };
   };
 
   const rankInfo = getArchitectRank(stats.totalDiagrams);
@@ -132,7 +151,12 @@ export default function Profile() {
 
     setIsSaving(true);
     try {
-      const { error } = await updateProfile(editName, editAvatar);
+      const { error } = await updateProfile(
+        editName,
+        editAvatar,
+        editBio,
+        editRole,
+      );
       if (error) throw error;
       toast.success("Profile details updated successfully!");
       setIsEditing(false);
@@ -146,7 +170,42 @@ export default function Profile() {
   const handleCancel = () => {
     setEditName(profile?.display_name || "");
     setEditAvatar(profile?.avatar_url || "");
+    setEditBio(profile?.bio || "");
+    setEditRole(profile?.role || "");
     setIsEditing(false);
+  };
+
+  // Image Compression helper to ensure avatar thumbnails are compact (< 25KB)
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const size = 256;
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          URL.revokeObjectURL(url);
+          return resolve(url);
+        }
+        const minDim = Math.min(img.width, img.height);
+        const sx = (img.width - minDim) / 2;
+        const sy = (img.height - minDim) / 2;
+        ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, size, size);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+        URL.revokeObjectURL(url);
+        resolve(dataUrl);
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(file);
+      };
+      img.src = url;
+    });
   };
 
   // Avatar Upload with Resilient Fallback
@@ -154,58 +213,57 @@ export default function Profile() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error("File size must be under 2MB");
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File size must be under 5MB");
       return;
     }
 
     setIsUploading(true);
-    const fileExt = file.name.split(".").pop();
-    const fileName = `${user?.id}-${Date.now()}.${fileExt}`;
-    const filePath = `avatars/${fileName}`;
-
     try {
-      // 1. Try uploading to Supabase Storage bucket 'avatars'
-      const { data: _data, error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(filePath, file, { cacheControl: "3600", upsert: true });
+      // 1. First compress the image to a compact 256x256 thumbnail
+      const compressedDataUrl = await compressImage(file);
+      let targetAvatarUrl = compressedDataUrl;
 
-      if (uploadError) throw uploadError;
+      // 2. Attempt uploading to Supabase Storage bucket 'avatars'
+      const fileExt = file.name.split(".").pop() || "png";
+      const fileName = `${user?.id}-${Date.now()}.${fileExt}`;
 
-      // 2. Get Public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from("avatars")
-        .getPublicUrl(filePath);
+      try {
+        const { error: uploadError } = await supabase.storage
+          .from("avatars")
+          .upload(fileName, file, { cacheControl: "3600", upsert: true });
 
-      setEditAvatar(publicUrl);
-      
+        if (!uploadError) {
+          const {
+            data: { publicUrl },
+          } = supabase.storage.from("avatars").getPublicUrl(fileName);
+          if (publicUrl) {
+            targetAvatarUrl = publicUrl;
+          }
+        }
+      } catch (storageErr) {
+        console.warn(
+          "Storage upload failed, using compressed thumbnail fallback:",
+          storageErr,
+        );
+      }
+
+      setEditAvatar(targetAvatarUrl);
+
       if (!isEditing) {
-        const { error } = await updateProfile(profile?.display_name || "", publicUrl);
+        const { error } = await updateProfile(
+          profile?.display_name || "",
+          targetAvatarUrl,
+          profile?.bio || "",
+          profile?.role || "",
+        );
         if (error) throw error;
         toast.success("Profile avatar updated!");
       } else {
         toast.success("Avatar uploaded! Save details to apply.");
       }
     } catch (err: any) {
-      console.warn("Storage upload failed, employing Base64 fallback:", err);
-      // Fallback: Convert to Base64 inline string so it works even if storage bucket is offline or unconfigured
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64String = reader.result as string;
-        setEditAvatar(base64String);
-        if (!isEditing) {
-          const { error } = await updateProfile(profile?.display_name || "", base64String);
-          if (error) {
-            toast.error("Fallback update failed");
-          } else {
-            toast.success("Avatar saved to profile (offline database backup)!");
-          }
-        } else {
-          toast.success("Avatar processed! Save profile to apply.");
-        }
-        setIsUploading(false);
-      };
-      reader.readAsDataURL(file);
+      toast.error("Failed to process avatar image");
     } finally {
       setIsUploading(false);
     }
@@ -225,7 +283,9 @@ export default function Profile() {
 
     setIsUpdatingPassword(true);
     try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
       if (error) throw error;
       toast.success("Password updated securely!");
       setNewPassword("");
@@ -264,10 +324,13 @@ export default function Profile() {
       <div className="grid grid-cols-14 gap-1.5 p-2 bg-neutral/5 rounded-lg border border-border/40 overflow-x-auto">
         {daysArray.map((day, idx) => {
           let opacityClass = "bg-neutral/10";
-          if (day.count > 0) opacityClass = "bg-primary/30 border border-primary/40";
-          if (day.count > 2) opacityClass = "bg-primary/60 border border-primary/80";
-          if (day.count > 4) opacityClass = "bg-primary/95 shadow-sm shadow-primary/20";
-          
+          if (day.count > 0)
+            opacityClass = "bg-primary/30 border border-primary/40";
+          if (day.count > 2)
+            opacityClass = "bg-primary/60 border border-primary/80";
+          if (day.count > 4)
+            opacityClass = "bg-primary/95 shadow-sm shadow-primary/20";
+
           return (
             <div
               key={idx}
@@ -286,7 +349,7 @@ export default function Profile() {
     { name: "orange", color: ACCENT_MAP.orange, label: "Cyber" },
     { name: "green", color: ACCENT_MAP.green, label: "Technical" },
     { name: "blue", color: ACCENT_MAP.blue, label: "Analytical" },
-    { name: "silver", color: ACCENT_MAP.silver, label: "Brutalist" }
+    { name: "silver", color: ACCENT_MAP.silver, label: "Brutalist" },
   ];
 
   return (
@@ -316,7 +379,6 @@ export default function Profile() {
 
       {/* ── GRID SYSTEM (3 Columns - Swiss Tech Geometry) ── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        
         {/* COLUMN 1: IDENTITY & AVATAR (4 Cols) */}
         <motion.div
           initial={{ opacity: 0, x: -15 }}
@@ -349,7 +411,9 @@ export default function Profile() {
                 />
               ) : (
                 <div className="text-4xl font-black text-primary uppercase">
-                  {user?.email?.charAt(0) || <UserCircle className="w-16 h-16 opacity-30" />}
+                  {user?.email?.charAt(0) || (
+                    <UserCircle className="w-16 h-16 opacity-30" />
+                  )}
                 </div>
               )}
 
@@ -366,12 +430,17 @@ export default function Profile() {
                 className="absolute inset-0 bg-bg/75 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-opacity duration-300 text-primary cursor-pointer border-none"
               >
                 <Camera className="w-6 h-6 mb-1 hover:scale-110 transition-transform" />
-                <span className="text-[9px] uppercase tracking-wider font-mono">Upload</span>
+                <span className="text-[9px] uppercase tracking-wider font-mono">
+                  Upload
+                </span>
               </button>
             </div>
-            
+
             {/* Status dot */}
-            <div className="absolute bottom-1.5 right-1.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-bg" title="Architect Online" />
+            <div
+              className="absolute bottom-1.5 right-1.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-bg"
+              title="Architect Online"
+            />
           </div>
 
           <input
@@ -400,14 +469,26 @@ export default function Profile() {
                 </div>
                 <div>
                   <label className="text-[9px] uppercase tracking-widest text-neutral/45 mb-1 block font-mono font-bold">
-                    Avatar URL Override
+                    Role / Title
                   </label>
                   <input
                     type="text"
-                    className="w-full bg-input border border-input-border rounded-md px-3 py-2 text-xs text-neutral/70 outline-none focus:border-primary/50 focus:bg-neutral/5 transition-all font-mono"
-                    value={editAvatar}
-                    onChange={(e) => setEditAvatar(e.target.value)}
-                    placeholder="https://example.com/avatar.png"
+                    className="w-full bg-input border border-input-border rounded-md px-3 py-2 text-xs text-neutral outline-none focus:border-primary/50 focus:bg-neutral/5 transition-all font-mono"
+                    value={editRole}
+                    onChange={(e) => setEditRole(e.target.value)}
+                    placeholder="e.g. Software Architect"
+                  />
+                </div>
+                <div>
+                  <label className="text-[9px] uppercase tracking-widest text-neutral/45 mb-1 block font-mono font-bold">
+                    Bio
+                  </label>
+                  <textarea
+                    rows={2}
+                    className="w-full bg-input border border-input-border rounded-md px-3 py-2 text-xs text-neutral outline-none focus:border-primary/50 focus:bg-neutral/5 transition-all font-mono resize-none"
+                    value={editBio}
+                    onChange={(e) => setEditBio(e.target.value)}
+                    placeholder="Short bio about yourself..."
                   />
                 </div>
                 <div className="flex gap-2.5 pt-2">
@@ -433,12 +514,28 @@ export default function Profile() {
                 </div>
               </div>
             ) : (
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <h2 className="text-xl font-black tracking-tight text-neutral font-sans">
-                  {profile?.display_name || user?.email?.split("@")[0] || "Maestro Architect"}
+                  {profile?.display_name ||
+                    user?.email?.split("@")[0] ||
+                    "Maestro Architect"}
                 </h2>
-                <p className="text-xs text-neutral/50 font-mono select-all">{user?.email}</p>
-                <div className={`mt-4 inline-flex items-center gap-1.5 border px-3 py-1 rounded-md text-[10px] font-mono uppercase tracking-wider ${rankInfo.color}`}>
+                {profile?.role && (
+                  <p className="text-xs font-mono font-semibold text-primary">
+                    {profile.role}
+                  </p>
+                )}
+                {profile?.bio && (
+                  <p className="text-xs text-neutral/70 font-sans italic max-w-xs mx-auto">
+                    "{profile.bio}"
+                  </p>
+                )}
+                <p className="text-xs text-neutral/50 font-mono select-all">
+                  {user?.email}
+                </p>
+                <div
+                  className={`mt-4 inline-flex items-center gap-1.5 border px-3 py-1 rounded-md text-[10px] font-mono uppercase tracking-wider ${rankInfo.color}`}
+                >
                   <Award className="w-3.5 h-3.5" />
                   {rankInfo.title}
                 </div>
@@ -453,17 +550,15 @@ export default function Profile() {
               className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-md bg-red-500/5 hover:bg-red-500/10 border border-red-500/20 hover:border-red-500/40 text-red-400 font-bold text-xs cursor-pointer transition-all duration-300 shadow-md shadow-red-500/5 group"
             >
               <LogOut className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
-              Sign Out from Terminal
+              Sign Out
             </button>
           </div>
         </motion.div>
 
         {/* COLUMN 2: ANALYTICS & ACTIVITY HEATMAP (8 Cols) */}
         <div className="lg:col-span-8 flex flex-col gap-8">
-          
           {/* ROW 2.1: STATISTICS TILES */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            
             {/* STATS: TOTAL DIAGRAMS */}
             <motion.div
               initial={{ opacity: 0, y: 10 }}
@@ -475,15 +570,21 @@ export default function Profile() {
                 <div className="w-9 h-9 rounded-md bg-primary/10 flex items-center justify-center border border-primary/20">
                   <BarChart3 className="w-4 h-4 text-primary" />
                 </div>
-                <span className="font-bold text-xs text-neutral/70 font-mono">Systems Count</span>
+                <span className="font-bold text-xs text-neutral/70 font-mono">
+                  Diagram Count
+                </span>
               </div>
               <div className="mt-5">
                 {loadingStats ? (
                   <div className="w-12 h-8 bg-neutral/10 animate-pulse rounded-md" />
                 ) : (
-                  <span className="text-3xl font-black tracking-tighter text-neutral">{stats.totalDiagrams}</span>
+                  <span className="text-3xl font-black tracking-tighter text-neutral">
+                    {stats.totalDiagrams}
+                  </span>
                 )}
-                <p className="text-[9px] text-neutral/40 uppercase tracking-widest mt-1 font-mono">Total Generated</p>
+                <p className="text-[9px] text-neutral/40 uppercase tracking-widest mt-1 font-mono">
+                  Total Generated
+                </p>
               </div>
             </motion.div>
 
@@ -498,16 +599,22 @@ export default function Profile() {
                 <div className="w-9 h-9 rounded-md bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
                   <Database className="w-4 h-4 text-emerald-400" />
                 </div>
-                <span className="font-bold text-xs text-neutral/70 font-mono">Data Flows (DFD)</span>
+                <span className="font-bold text-xs text-neutral/70 font-mono">
+                  Data Flows (DFD)
+                </span>
               </div>
               <div className="mt-5 space-y-1">
                 <div className="flex justify-between items-baseline">
                   {loadingStats ? (
                     <div className="w-10 h-7 bg-neutral/10 animate-pulse rounded-md" />
                   ) : (
-                    <span className="text-2xl font-black tracking-tighter text-neutral">{stats.dfdCount}</span>
+                    <span className="text-2xl font-black tracking-tighter text-neutral">
+                      {stats.dfdCount}
+                    </span>
                   )}
-                  <span className="text-xs font-mono font-bold text-emerald-400">{stats.dfdPercent}%</span>
+                  <span className="text-xs font-mono font-bold text-emerald-400">
+                    {stats.dfdPercent}%
+                  </span>
                 </div>
                 <div className="w-full bg-neutral/10 h-1.5 rounded-full overflow-hidden">
                   <div
@@ -529,16 +636,22 @@ export default function Profile() {
                 <div className="w-9 h-9 rounded-md bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20">
                   <Database className="w-4 h-4 text-cyan-400" />
                 </div>
-                <span className="font-bold text-xs text-neutral/70 font-mono">Entity Rels (ER)</span>
+                <span className="font-bold text-xs text-neutral/70 font-mono">
+                  Entity Relationship (ER)
+                </span>
               </div>
               <div className="mt-5 space-y-1">
                 <div className="flex justify-between items-baseline">
                   {loadingStats ? (
                     <div className="w-10 h-7 bg-neutral/10 animate-pulse rounded-md" />
                   ) : (
-                    <span className="text-2xl font-black tracking-tighter text-neutral">{stats.erCount}</span>
+                    <span className="text-2xl font-black tracking-tighter text-neutral">
+                      {stats.erCount}
+                    </span>
                   )}
-                  <span className="text-xs font-mono font-bold text-cyan-400">{stats.erPercent}%</span>
+                  <span className="text-xs font-mono font-bold text-cyan-400">
+                    {stats.erPercent}%
+                  </span>
                 </div>
                 <div className="w-full bg-neutral/10 h-1.5 rounded-full overflow-hidden">
                   <div
@@ -548,7 +661,6 @@ export default function Profile() {
                 </div>
               </div>
             </motion.div>
-
           </div>
 
           {/* ROW 2.2: ARCHITECT BLUEPRINT GRID HEATMAP */}
@@ -561,19 +673,25 @@ export default function Profile() {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-primary" />
-                <h3 className="font-bold text-sm text-neutral font-mono uppercase tracking-wider">System Architecture Grid</h3>
+                <h3 className="font-bold text-sm text-neutral font-mono uppercase tracking-wider">
+                  Diagram Architecture Grid
+                </h3>
               </div>
-              <span className="text-[10px] text-neutral/40 font-mono">LATEST 14 WEEKS METRICS</span>
+              <span className="text-[10px] text-neutral/40 font-mono">
+                LATEST 14 WEEKS METRICS
+              </span>
             </div>
-            
+
             {loadingStats ? (
               <div className="w-full h-24 bg-neutral/5 animate-pulse border border-border/30 rounded-lg flex items-center justify-center">
-                <span className="text-xs text-neutral/30 font-mono">Syncing activity...</span>
+                <span className="text-xs text-neutral/30 font-mono">
+                  Syncing activity...
+                </span>
               </div>
             ) : (
               renderHeatmap()
             )}
-            
+
             <div className="flex justify-between items-center mt-3 text-[9px] text-neutral/40 font-mono uppercase">
               <span>Past Quarters</span>
               <div className="flex items-center gap-1.5">
@@ -589,7 +707,6 @@ export default function Profile() {
 
           {/* ROW 2.3: SYSTEM SETTINGS PANEL (Accents, Appearance, Security) */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            
             {/* OPTION MODULE: DYNAMIC APPERANCES & ACCENTS */}
             <motion.div
               initial={{ opacity: 0, y: 15 }}
@@ -599,14 +716,20 @@ export default function Profile() {
             >
               <div className="flex items-center gap-2 border-b border-border/40 pb-3">
                 <Palette className="w-4 h-4 text-primary" />
-                <h3 className="font-bold text-sm text-neutral font-mono uppercase tracking-wider">Accent & Appearance</h3>
+                <h3 className="font-bold text-sm text-neutral font-mono uppercase tracking-wider">
+                  Accent & Appearance
+                </h3>
               </div>
 
               {/* Theme Selector Light / Dark */}
               <div className="flex justify-between items-center">
                 <div className="space-y-0.5">
-                  <span className="text-xs font-bold text-neutral font-sans">Workspace Theme</span>
-                  <p className="text-[10px] text-neutral/45 font-mono">Switch layout rendering mode</p>
+                  <span className="text-xs font-bold text-neutral font-sans">
+                    Workspace Theme
+                  </span>
+                  <p className="text-[10px] text-neutral/45 font-mono">
+                    Switch layout rendering mode
+                  </p>
                 </div>
                 <button
                   onClick={toggleTheme}
@@ -629,8 +752,12 @@ export default function Profile() {
               {/* Dynamic Accent Tuning Grid */}
               <div className="space-y-3">
                 <div className="space-y-0.5">
-                  <span className="text-xs font-bold text-neutral font-sans">Dynamic UI Branding Accent</span>
-                  <p className="text-[10px] text-neutral/45 font-mono">Propagates workspace-wide in real-time</p>
+                  <span className="text-xs font-bold text-neutral font-sans">
+                    Dynamic UI Branding Accent
+                  </span>
+                  <p className="text-[10px] text-neutral/45 font-mono">
+                    Propagates workspace-wide in real-time
+                  </p>
                 </div>
 
                 <div className="flex flex-wrap gap-2.5 pt-1">
@@ -641,7 +768,9 @@ export default function Profile() {
                         key={acc.name}
                         onClick={() => {
                           setAccent(acc.name);
-                          toast.success(`Branding Accent shifted to ${acc.label}!`);
+                          toast.success(
+                            `Branding Accent shifted to ${acc.label}!`,
+                          );
                         }}
                         className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-[10px] font-mono uppercase font-bold cursor-pointer transition-all ${
                           isSelected
@@ -671,7 +800,9 @@ export default function Profile() {
             >
               <div className="flex items-center gap-2 border-b border-border/40 pb-3">
                 <Lock className="w-4 h-4 text-primary" />
-                <h3 className="font-bold text-sm text-neutral font-mono uppercase tracking-wider">Credential Security</h3>
+                <h3 className="font-bold text-sm text-neutral font-mono uppercase tracking-wider">
+                  Credential Security
+                </h3>
               </div>
 
               <form onSubmit={handleUpdatePassword} className="space-y-3">
@@ -694,7 +825,11 @@ export default function Profile() {
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral/30 hover:text-neutral/70 border-none bg-transparent cursor-pointer p-0"
                     >
-                      {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      {showPassword ? (
+                        <EyeOff className="w-3.5 h-3.5" />
+                      ) : (
+                        <Eye className="w-3.5 h-3.5" />
+                      )}
                     </button>
                   </div>
                 </div>
@@ -732,11 +867,8 @@ export default function Profile() {
                 </div>
               </form>
             </motion.div>
-
           </div>
-
         </div>
-
       </div>
     </div>
   );

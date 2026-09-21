@@ -49,27 +49,14 @@ export const RightPropertiesPanel = () => {
 
   if (showCodeInRightPanel) {
     return (
-      <div className="flex flex-col h-full bg-panel/60 backdrop-blur-xl shadow-xl w-64 md:w-72 lg:w-80 border-l border-border/80 shrink-0">
-        <div className="p-4 border-b border-border/80 shrink-0 bg-transparent flex justify-between items-center">
-          <h3 className="text-xs font-semibold text-neutral/70 uppercase tracking-wider">
-            Source Code
-          </h3>
-          <button
-            onClick={() => setShowCodeInRightPanel(false)}
-            className="text-[10px] text-primary hover:text-primary/80 transition-colors font-medium bg-primary/10 px-2 py-1 rounded"
-          >
-            Back to Props
-          </button>
-        </div>
-        <div className="flex-1 overflow-hidden">
-          <CodeEditorPanel />
-        </div>
+      <div className="flex flex-col h-full w-full bg-transparent shrink-0 overflow-hidden">
+        <CodeEditorPanel />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full bg-panel/60 backdrop-blur-xl shadow-xl w-64 md:w-72 lg:w-80 border-l border-border/80 shrink-0">
+    <div className="flex flex-col h-full w-full bg-transparent shrink-0 overflow-hidden">
       <div className="p-4 shrink-0 bg-transparent flex justify-between items-center">
         <h3 className="text-xs font-semibold text-neutral/70 uppercase tracking-wider">
           Properties

@@ -14,6 +14,7 @@ export default function Home() {
   const [totalDiagrams, setTotalDiagrams] = useState(0);
   const [mostCreatedType, setMostCreatedType] = useState("None");
   const [typeBreakdown, setTypeBreakdown] = useState<Record<string, number>>({});
+  const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
 
   const fetchSummary = useCallback(() => {
     setLoading(true);
@@ -42,12 +43,19 @@ export default function Home() {
     fetchSummary();
   }, [fetchSummary]);
 
+  // Filter projects dynamically based on stat card selection
+  const filteredProjects = recentProjects.filter((p) => {
+    if (!selectedFilter) return true;
+    if (selectedFilter === "pinned") return p.is_pinned;
+    return p.diagram_type === selectedFilter;
+  });
+
   return (
     <div className="flex flex-col gap-12 w-full">
       <HeroSection />
       <TemplateGallery />
       <RecentFiles
-        projects={recentProjects}
+        projects={filteredProjects}
         loading={loading}
         onRefresh={fetchSummary}
       />
@@ -56,7 +64,10 @@ export default function Home() {
         mostCreatedType={mostCreatedType}
         typeBreakdown={typeBreakdown}
         loading={loading}
+        selectedFilter={selectedFilter}
+        onSelectFilter={setSelectedFilter}
       />
     </div>
   );
 }
+

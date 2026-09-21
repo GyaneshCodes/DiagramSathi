@@ -528,6 +528,9 @@ const PaneCenterCanvasInner = () => {
         // Use ELK polyline when we have full routing data from ELK
         const hasElkRouting = e.data?.startPoint && e.data?.endPoint;
 
+        const isLine = e.style === ("line" as any) || e.style === ("dashed-line" as any);
+        const isThick = e.style === ("thick" as any);
+
         return {
           id: e.id,
           source: e.source,
@@ -548,15 +551,17 @@ const PaneCenterCanvasInner = () => {
             bendPoints: e.data?.bendPoints,
             endPoint: e.data?.endPoint,
           },
-          markerEnd: {
-            type: MarkerType.ArrowClosed,
-            color: edgeStroke,
-          },
+          markerEnd: isLine
+            ? undefined
+            : {
+                type: MarkerType.ArrowClosed,
+                color: edgeStroke,
+              },
           style: {
             stroke: edgeStroke,
-            strokeWidth: 2,
+            strokeWidth: isThick ? 4 : 2,
             strokeDasharray:
-              e.style === "dashed"
+              e.style === "dashed" || e.style === ("dashed-line" as any)
                 ? "5 5"
                 : e.style === "dotted"
                   ? "1 4"

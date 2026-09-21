@@ -10,13 +10,18 @@ import { useTheme } from "../../context/ThemeContext";
 import { getDiagramThemeStyles } from "../../utils/diagramThemes";
 
 // Helper to determine text color (light or dark) based on background hex color
-export const getContrastTextColor = (hexColor: string, appTheme: "dark" | "light" = "dark") => {
+export const getContrastTextColor = (
+  hexColor: string,
+  appTheme: "dark" | "light" = "dark",
+) => {
   if (!hexColor || hexColor === "transparent") {
     return appTheme === "light" ? "text-slate-900" : "text-slate-200";
   }
 
   const hex = hexColor.replace("#", "");
-  let r = 0, g = 0, b = 0;
+  let r = 0,
+    g = 0,
+    b = 0;
   if (hex.length === 3) {
     r = parseInt(hex.substring(0, 1) + hex.substring(0, 1), 16);
     g = parseInt(hex.substring(1, 2) + hex.substring(1, 2), 16);
@@ -36,22 +41,27 @@ export const getContrastTextColor = (hexColor: string, appTheme: "dark" | "light
 export const useDiagramNodeStyles = (data: any) => {
   const diagramTheme = useDiagramStore((state) => state.diagramTheme);
   const { theme: appTheme } = useTheme();
-  
+
   const customColor = (data.color as string) || "#6366f1";
   const defaultFillColor = appTheme === "light" ? "#ffffff" : "#1e293b";
   const customFillColor = (data.fillColor as string) || defaultFillColor;
-  
+
   const themeStyles = getDiagramThemeStyles(diagramTheme, appTheme);
-  
+
   if (themeStyles) {
-    const textColorClass = themeStyles.textColor === "#ffffff" ? "text-slate-200" : (themeStyles.textColor === "#000000" ? "text-slate-950" : getContrastTextColor(themeStyles.fillColor, appTheme));
+    const textColorClass =
+      themeStyles.textColor === "#ffffff"
+        ? "text-slate-200"
+        : themeStyles.textColor === "#000000"
+          ? "text-slate-950"
+          : getContrastTextColor(themeStyles.fillColor, appTheme);
     return {
       color: themeStyles.borderColor,
       fillColor: themeStyles.fillColor,
       textColorClass,
     };
   }
-  
+
   return {
     color: customColor,
     fillColor: customFillColor,
@@ -75,14 +85,22 @@ export const renderHandles = (offsets?: {
       position={Position.Top}
       id="top-source-0"
       className={handleClass}
-      style={{ left: "calc(50% - 18px)", top: offsets?.top ?? 0, bottom: "auto" }}
+      style={{
+        left: "calc(50% - 18px)",
+        top: offsets?.top ?? 0,
+        bottom: "auto",
+      }}
     />
     <Handle
       type="target"
       position={Position.Top}
       id="top-target-0"
       className={handleClass}
-      style={{ left: "calc(50% - 18px)", top: offsets?.top ?? 0, bottom: "auto" }}
+      style={{
+        left: "calc(50% - 18px)",
+        top: offsets?.top ?? 0,
+        bottom: "auto",
+      }}
     />
     <Handle
       type="source"
@@ -103,14 +121,22 @@ export const renderHandles = (offsets?: {
       position={Position.Top}
       id="top-source-2"
       className={handleClass}
-      style={{ left: "calc(50% + 18px)", top: offsets?.top ?? 0, bottom: "auto" }}
+      style={{
+        left: "calc(50% + 18px)",
+        top: offsets?.top ?? 0,
+        bottom: "auto",
+      }}
     />
     <Handle
       type="target"
       position={Position.Top}
       id="top-target-2"
       className={handleClass}
-      style={{ left: "calc(50% + 18px)", top: offsets?.top ?? 0, bottom: "auto" }}
+      style={{
+        left: "calc(50% + 18px)",
+        top: offsets?.top ?? 0,
+        bottom: "auto",
+      }}
     />
 
     {/* BOTTOM handles */}
@@ -119,14 +145,22 @@ export const renderHandles = (offsets?: {
       position={Position.Bottom}
       id="bottom-source-0"
       className={handleClass}
-      style={{ left: "calc(50% - 18px)", bottom: offsets?.bottom ?? 0, top: "auto" }}
+      style={{
+        left: "calc(50% - 18px)",
+        bottom: offsets?.bottom ?? 0,
+        top: "auto",
+      }}
     />
     <Handle
       type="target"
       position={Position.Bottom}
       id="bottom-target-0"
       className={handleClass}
-      style={{ left: "calc(50% - 18px)", bottom: offsets?.bottom ?? 0, top: "auto" }}
+      style={{
+        left: "calc(50% - 18px)",
+        bottom: offsets?.bottom ?? 0,
+        top: "auto",
+      }}
     />
     <Handle
       type="source"
@@ -147,14 +181,22 @@ export const renderHandles = (offsets?: {
       position={Position.Bottom}
       id="bottom-source-2"
       className={handleClass}
-      style={{ left: "calc(50% + 18px)", bottom: offsets?.bottom ?? 0, top: "auto" }}
+      style={{
+        left: "calc(50% + 18px)",
+        bottom: offsets?.bottom ?? 0,
+        top: "auto",
+      }}
     />
     <Handle
       type="target"
       position={Position.Bottom}
       id="bottom-target-2"
       className={handleClass}
-      style={{ left: "calc(50% + 18px)", bottom: offsets?.bottom ?? 0, top: "auto" }}
+      style={{
+        left: "calc(50% + 18px)",
+        bottom: offsets?.bottom ?? 0,
+        top: "auto",
+      }}
     />
 
     {/* LEFT handles */}
@@ -163,14 +205,22 @@ export const renderHandles = (offsets?: {
       position={Position.Left}
       id="left-source-0"
       className={handleClass}
-      style={{ top: "calc(50% - 18px)", left: offsets?.left ?? 0, right: "auto" }}
+      style={{
+        top: "calc(50% - 18px)",
+        left: offsets?.left ?? 0,
+        right: "auto",
+      }}
     />
     <Handle
       type="target"
       position={Position.Left}
       id="left-target-0"
       className={handleClass}
-      style={{ top: "calc(50% - 18px)", left: offsets?.left ?? 0, right: "auto" }}
+      style={{
+        top: "calc(50% - 18px)",
+        left: offsets?.left ?? 0,
+        right: "auto",
+      }}
     />
     <Handle
       type="source"
@@ -191,14 +241,22 @@ export const renderHandles = (offsets?: {
       position={Position.Left}
       id="left-source-2"
       className={handleClass}
-      style={{ top: "calc(50% + 18px)", left: offsets?.left ?? 0, right: "auto" }}
+      style={{
+        top: "calc(50% + 18px)",
+        left: offsets?.left ?? 0,
+        right: "auto",
+      }}
     />
     <Handle
       type="target"
       position={Position.Left}
       id="left-target-2"
       className={handleClass}
-      style={{ top: "calc(50% + 18px)", left: offsets?.left ?? 0, right: "auto" }}
+      style={{
+        top: "calc(50% + 18px)",
+        left: offsets?.left ?? 0,
+        right: "auto",
+      }}
     />
 
     {/* RIGHT handles */}
@@ -207,14 +265,22 @@ export const renderHandles = (offsets?: {
       position={Position.Right}
       id="right-source-0"
       className={handleClass}
-      style={{ top: "calc(50% - 18px)", right: offsets?.right ?? 0, left: "auto" }}
+      style={{
+        top: "calc(50% - 18px)",
+        right: offsets?.right ?? 0,
+        left: "auto",
+      }}
     />
     <Handle
       type="target"
       position={Position.Right}
       id="right-target-0"
       className={handleClass}
-      style={{ top: "calc(50% - 18px)", right: offsets?.right ?? 0, left: "auto" }}
+      style={{
+        top: "calc(50% - 18px)",
+        right: offsets?.right ?? 0,
+        left: "auto",
+      }}
     />
     <Handle
       type="source"
@@ -235,14 +301,22 @@ export const renderHandles = (offsets?: {
       position={Position.Right}
       id="right-source-2"
       className={handleClass}
-      style={{ top: "calc(50% + 18px)", right: offsets?.right ?? 0, left: "auto" }}
+      style={{
+        top: "calc(50% + 18px)",
+        right: offsets?.right ?? 0,
+        left: "auto",
+      }}
     />
     <Handle
       type="target"
       position={Position.Right}
       id="right-target-2"
       className={handleClass}
-      style={{ top: "calc(50% + 18px)", right: offsets?.right ?? 0, left: "auto" }}
+      style={{
+        top: "calc(50% + 18px)",
+        right: offsets?.right ?? 0,
+        left: "auto",
+      }}
     />
   </>
 );
@@ -292,11 +366,12 @@ const RectangleNode = ({ data, id, selected }: NodeProps<Node>) => {
           className={svgPathClasses}
         />
       </svg>
-      <div 
+      <div
         className={`diagram-text-container px-4 py-2 text-sm font-bold ${textColorClass} z-10 whitespace-normal relative text-center pointer-events-none w-full max-w-[90%] ${data.isMeasuring ? "" : "max-h-[80%] overflow-hidden"} break-words flex items-center justify-center`}
         style={{
           fontSize: fontSize ? `${fontSize}px` : undefined,
-          fontWeight: fontBold === undefined ? undefined : (fontBold ? "bold" : "normal"),
+          fontWeight:
+            fontBold === undefined ? undefined : fontBold ? "bold" : "normal",
           fontStyle: fontItalic ? "italic" : "normal",
         }}
       >
@@ -348,14 +423,14 @@ const SquareNode = ({ data, id, selected }: NodeProps<Node>) => {
           fillOpacity={fillColor === "transparent" ? 0 : 1}
           stroke={color}
           strokeWidth="2"
-          className={svgPathClasses}
         />
       </svg>
-      <div 
+      <div
         className={`diagram-text-container px-4 py-4 text-sm font-bold ${textColorClass} whitespace-normal z-10 text-center pointer-events-none w-full max-w-[70%] ${data.isMeasuring ? "" : "max-h-[70%] overflow-hidden"} break-words flex items-center justify-center`}
         style={{
           fontSize: fontSize ? `${fontSize}px` : undefined,
-          fontWeight: fontBold === undefined ? undefined : (fontBold ? "bold" : "normal"),
+          fontWeight:
+            fontBold === undefined ? undefined : fontBold ? "bold" : "normal",
           fontStyle: fontItalic ? "italic" : "normal",
         }}
       >
@@ -405,14 +480,14 @@ const CircleNode = ({ data, id, selected }: NodeProps<Node>) => {
           fillOpacity={fillColor === "transparent" ? 0 : 1}
           stroke={color}
           strokeWidth="2"
-          className={svgPathClasses}
         />
       </svg>
-      <div 
+      <div
         className={`diagram-text-container px-4 py-4 text-sm font-bold ${textColorClass} whitespace-normal z-10 text-center pointer-events-none w-full max-w-[70%] ${data.isMeasuring ? "" : "max-h-[70%] overflow-hidden"} break-words flex items-center justify-center`}
         style={{
           fontSize: fontSize ? `${fontSize}px` : undefined,
-          fontWeight: fontBold === undefined ? undefined : (fontBold ? "bold" : "normal"),
+          fontWeight:
+            fontBold === undefined ? undefined : fontBold ? "bold" : "normal",
           fontStyle: fontItalic ? "italic" : "normal",
         }}
       >
@@ -458,14 +533,14 @@ const DiamondNode = ({ data, id, selected }: NodeProps<Node>) => {
           fillOpacity={fillColor === "transparent" ? 0 : 1}
           stroke={color}
           strokeWidth="2"
-          className={svgPathClasses}
         />
       </svg>
-      <div 
+      <div
         className={`diagram-text-container px-2 py-2 text-sm font-bold ${textColorClass} whitespace-normal w-full max-w-[55%] ${data.isMeasuring ? "" : "max-h-[55%] overflow-hidden"} z-10 text-center pointer-events-none leading-tight break-words flex items-center justify-center`}
         style={{
           fontSize: fontSize ? `${fontSize}px` : undefined,
-          fontWeight: fontBold === undefined ? undefined : (fontBold ? "bold" : "normal"),
+          fontWeight:
+            fontBold === undefined ? undefined : fontBold ? "bold" : "normal",
           fontStyle: fontItalic ? "italic" : "normal",
         }}
       >
@@ -511,14 +586,14 @@ const ParallelogramNode = ({ data, id, selected }: NodeProps<Node>) => {
           fillOpacity={fillColor === "transparent" ? 0 : 1}
           stroke={color}
           strokeWidth="2"
-          className={svgPathClasses}
         />
       </svg>
-      <div 
+      <div
         className={`diagram-text-container px-4 py-2 text-sm font-bold ${textColorClass} whitespace-normal w-full max-w-[70%] ${data.isMeasuring ? "" : "max-h-[80%] overflow-hidden"} z-10 text-center pointer-events-none break-words flex items-center justify-center`}
         style={{
           fontSize: fontSize ? `${fontSize}px` : undefined,
-          fontWeight: fontBold === undefined ? undefined : (fontBold ? "bold" : "normal"),
+          fontWeight:
+            fontBold === undefined ? undefined : fontBold ? "bold" : "normal",
           fontStyle: fontItalic ? "italic" : "normal",
         }}
       >
@@ -564,14 +639,14 @@ const HexagonNode = ({ data, id, selected }: NodeProps<Node>) => {
           fillOpacity={fillColor === "transparent" ? 0 : 1}
           stroke={color}
           strokeWidth="2"
-          className={svgPathClasses}
         />
       </svg>
-      <div 
+      <div
         className={`diagram-text-container px-4 py-2 text-sm font-bold ${textColorClass} whitespace-normal w-full max-w-[75%] ${data.isMeasuring ? "" : "max-h-[80%] overflow-hidden"} z-10 text-center pointer-events-none break-words flex items-center justify-center`}
         style={{
           fontSize: fontSize ? `${fontSize}px` : undefined,
-          fontWeight: fontBold === undefined ? undefined : (fontBold ? "bold" : "normal"),
+          fontWeight:
+            fontBold === undefined ? undefined : fontBold ? "bold" : "normal",
           fontStyle: fontItalic ? "italic" : "normal",
         }}
       >
@@ -628,11 +703,12 @@ const CylinderNode = ({ data, id, selected }: NodeProps<Node>) => {
           className="opacity-90 transition-all"
         />
       </svg>
-      <div 
+      <div
         className={`diagram-text-container px-4 py-2 mt-4 text-sm font-bold ${textColorClass} whitespace-normal w-full max-w-[80%] ${data.isMeasuring ? "" : "max-h-[65%] overflow-hidden"} z-10 text-center pointer-events-none break-words flex items-center justify-center`}
         style={{
           fontSize: fontSize ? `${fontSize}px` : undefined,
-          fontWeight: fontBold === undefined ? undefined : (fontBold ? "bold" : "normal"),
+          fontWeight:
+            fontBold === undefined ? undefined : fontBold ? "bold" : "normal",
           fontStyle: fontItalic ? "italic" : "normal",
         }}
       >
@@ -657,7 +733,8 @@ const StadiumNode = ({ data, id, selected }: NodeProps<Node>) => {
       style={{
         width: "100%",
         height: "100%",
-        backgroundColor: fillColor === "transparent" ? "transparent" : fillColor,
+        backgroundColor:
+          fillColor === "transparent" ? "transparent" : fillColor,
         border: `2px solid ${color}`,
       }}
     >
@@ -672,11 +749,12 @@ const StadiumNode = ({ data, id, selected }: NodeProps<Node>) => {
           updateNode(id, { width, height })
         }
       />
-      <div 
+      <div
         className={`diagram-text-container px-4 py-2 text-sm font-bold ${textColorClass} z-10 whitespace-normal relative text-center pointer-events-none w-full max-w-[90%] ${data.isMeasuring ? "" : "max-h-[80%] overflow-hidden"} break-words flex items-center justify-center`}
         style={{
           fontSize: fontSize ? `${fontSize}px` : undefined,
-          fontWeight: fontBold === undefined ? undefined : (fontBold ? "bold" : "normal"),
+          fontWeight:
+            fontBold === undefined ? undefined : fontBold ? "bold" : "normal",
           fontStyle: fontItalic ? "italic" : "normal",
         }}
       >

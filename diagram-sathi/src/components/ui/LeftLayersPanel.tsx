@@ -12,7 +12,7 @@ import {
   Info,
 } from "lucide-react";
 import { generateDiagramFromDescription } from "../../utils/aiService";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "../../context/AuthContext";
 import { logAiGeneration } from "../../lib/projects";
@@ -21,10 +21,10 @@ import { useErDiagramStore } from "../../store/useErDiagramStore";
 
 /**
  * LeftLayersPanel Component
- * 
+ *
  * This component handles the left sidebar (AI Generation & Layers list).
  * It replaces the older PaneLeftForm as part of the Figma UI transition.
- * 
+ *
  * Functionalities include:
  * - Smart Suggest logic parsing text to generate diagrams via Gemini AI
  * - Mutable Diagram Type selector
@@ -58,13 +58,14 @@ export const LeftLayersPanel = () => {
 
   const { session } = useAuth();
   const [loadingStep, setLoadingStep] = useState(0);
+  const hasAutoTriggeredRef = useRef(false);
 
   const handleSmartSuggest = async () => {
     if (!projectDescription.trim()) return;
-    
+
     setIsGenerating(true);
     setLoadingStep(1);
-    
+
     const intervalId = setInterval(() => {
       setLoadingStep((prev) => (prev < 4 ? prev + 1 : 1));
     }, 800);
@@ -73,35 +74,41 @@ export const LeftLayersPanel = () => {
       const result = await generateDiagramFromDescription(
         projectDescription,
         preferredDiagramType,
-        dfdLevel
+        dfdLevel,
       );
-      
+
       if (preferredDiagramType === "er") {
         const erResult = result as { schemas: any[]; relationships: any[] };
-        await useErDiagramStore.getState().applyAIGeneratedEr(erResult.schemas, erResult.relationships);
-        
+        await useErDiagramStore
+          .getState()
+          .applyAIGeneratedEr(erResult.schemas, erResult.relationships);
+
         if (session?.user?.id) {
           logAiGeneration(
             session.user.id,
             currentProjectId,
             projectDescription,
-            erResult
+            erResult,
           );
         }
       } else {
         const generatedNodes = result.nodes as any[];
-        
+
         // Auto-heal edges: AI sometimes uses node labels instead of IDs for source/target
         const generatedEdges = result.edges!.map((e, i) => {
           let sourceId = String(e.source || "");
           let targetId = String(e.target || "");
-          
-          if (!generatedNodes.find(n => n.id === sourceId)) {
-            const match = generatedNodes.find(n => n.label?.toLowerCase() === sourceId.toLowerCase());
+
+          if (!generatedNodes.find((n) => n.id === sourceId)) {
+            const match = generatedNodes.find(
+              (n) => n.label?.toLowerCase() === sourceId.toLowerCase(),
+            );
             if (match) sourceId = match.id;
           }
-          if (!generatedNodes.find(n => n.id === targetId)) {
-            const match = generatedNodes.find(n => n.label?.toLowerCase() === targetId.toLowerCase());
+          if (!generatedNodes.find((n) => n.id === targetId)) {
+            const match = generatedNodes.find(
+              (n) => n.label?.toLowerCase() === targetId.toLowerCase(),
+            );
             if (match) targetId = match.id;
           }
 
@@ -109,30 +116,34 @@ export const LeftLayersPanel = () => {
             ...e,
             source: sourceId,
             target: targetId,
-            id: `ai_edge_${i}_${Math.random().toString(36).substr(2, 4)}`
+            id: `ai_edge_${i}_${Math.random().toString(36).substr(2, 4)}`,
           };
         }) as any;
 
         await applyAIGeneratedDiagram(generatedNodes, generatedEdges);
-        
+
         // Log the generation to Supabase
         if (session?.user?.id) {
           logAiGeneration(
             session.user.id,
             currentProjectId,
             projectDescription,
-            { nodes: generatedNodes, edges: generatedEdges }
+            { nodes: generatedNodes, edges: generatedEdges },
           );
         }
       }
 
       // Auto-save the generated diagram immediately
-      setProjectTitle(projectDescription.slice(0, 30) + (projectDescription.length > 30 ? "..." : ""));
+      setProjectTitle(
+        projectDescription.slice(0, 30) +
+          (projectDescription.length > 30 ? "..." : ""),
+      );
       if (session?.user?.id) {
         await saveProject(session.user.id);
       }
     } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : "Failed to generate diagram.";
+      const msg =
+        error instanceof Error ? error.message : "Failed to generate diagram.";
       toast.error(msg);
     } finally {
       clearInterval(intervalId);
@@ -143,7 +154,9 @@ export const LeftLayersPanel = () => {
 
   useEffect(() => {
     // Triggers automatically on mount if 'isGenerating' flag was set by another component (like Home)
-    if (isGenerating && projectDescription.trim()) {
+    if (isGenerating && projectDescription.trim() && !hasAutoTriggeredRef.current) {
+      hasAutoTriggeredRef.current = true;
+      setIsGenerating(false);
       handleSmartSuggest();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -169,16 +182,21 @@ export const LeftLayersPanel = () => {
 
   const getLoadingText = () => {
     switch (loadingStep) {
-      case 1: return "🧠 Analyzing architecture...";
-      case 2: return "📐 Defining nodes...";
-      case 3: return "🔗 Mapping flow connections...";
-      case 4: return "✨ Optimizing layout...";
-      default: return "Generating...";
+      case 1:
+        return "🧠 Analyzing architecture...";
+      case 2:
+        return "📐 Defining nodes...";
+      case 3:
+        return "🔗 Mapping flow connections...";
+      case 4:
+        return "✨ Optimizing layout...";
+      default:
+        return "Generating...";
     }
   };
 
   return (
-    <div className="flex flex-col h-full bg-panel/60 backdrop-blur-xl shadow-xl w-64 md:w-72 border-r border-border/80 shrink-0 select-none">
+    <div className="flex flex-col h-full w-full bg-transparent shrink-0 select-none overflow-hidden">
       {/* Top: AI Text Area + Diagram Type */}
       <div className="p-4 shrink-0 bg-transparent flex flex-col gap-3">
         <h3 className="text-xs font-semibold text-neutral/50 uppercase tracking-wider mt-1">
@@ -229,11 +247,14 @@ export const LeftLayersPanel = () => {
           {preferredDiagramType === "dfd" && (
             <div className="flex flex-col gap-1 mt-1">
               <div className="flex items-center gap-1 px-1">
-                <span className="text-[10px] font-semibold text-neutral/50 uppercase">DFD Level</span>
+                <span className="text-[10px] font-semibold text-neutral/50 uppercase">
+                  DFD Level
+                </span>
                 <div className="group relative flex items-center">
                   <Info size={12} className="text-neutral/40 cursor-help" />
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-48 p-2 bg-bg/90 backdrop-blur-xl border border-border/80 text-[10px] text-neutral rounded shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
-                    Level 0 shows the system as a whole; Level 1 shows the internal parts.
+                  <div className="absolute bottom-full left-8 -translate-x-1/2 mb-1 w-48 p-2 bg-bg/90 backdrop-blur-xl border border-border/80 text-[10px] text-neutral rounded shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
+                    Level 0 shows the system as a whole; Level 1 shows the
+                    internal parts.
                   </div>
                 </div>
               </div>
@@ -261,7 +282,9 @@ export const LeftLayersPanel = () => {
           disabled={isGenerating || !projectDescription.trim()}
           className="w-full text-xs bg-primary hover:bg-primary/80 disabled:bg-primary/20 disabled:text-primary/80 text-white py-2 rounded-md transition-colors font-medium flex items-center justify-center gap-2 overflow-hidden"
         >
-          <span className={`transition-all duration-300 ${isGenerating ? "animate-pulse" : ""}`}>
+          <span
+            className={`transition-all duration-300 ${isGenerating ? "animate-pulse" : ""}`}
+          >
             {isGenerating ? getLoadingText() : "✨ Generate Diagram"}
           </span>
         </button>
@@ -273,108 +296,110 @@ export const LeftLayersPanel = () => {
       {preferredDiagramType === "er" ? (
         <ErLeftPanel />
       ) : (
-      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-[10px] font-bold text-neutral/40 uppercase tracking-wider flex items-center gap-2">
-              <LayoutGrid size={12} /> Nodes
-            </h3>
-            <button
-              onClick={() => addNode({ label: "New Node", type: "rectangle" })}
-              className="p-1 text-neutral/40 hover:text-primary hover:bg-primary/10 cursor-pointer rounded transition-colors"
-              title="Add Node"
-            >
-              <Plus size={14} />
-            </button>
-          </div>
-          <ul className="space-y-0.5">
-            {nodes.map((n) => (
-              <li
-                key={n.id}
-                onClick={() => setSelectedNodeId(n.id)}
-                className={`flex items-center gap-2 px-2 py-1.5 cursor-pointer rounded-md text-xs transition-colors group ${
-                  selectedNodeId === n.id
-                    ? "bg-primary/20 text-primary"
-                    : "text-neutral/70 hover:bg-neutral/10 hover:text-neutral"
-                }`}
-              >
-                {getNodeIcon(n.type)}
-                <span className="truncate">{n.label}</span>
-                {selectedNodeId === n.id ? (
-                  <button
-                    onClick={(evt) => {
-                      evt.stopPropagation();
-                      removeNode(n.id);
-                    }}
-                    className="ml-auto p-1 text-red-500 hover:bg-red-500/20 rounded cursor-pointer transition-colors"
-                    title="Delete Node"
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                ) : (
-                  <span className="ml-auto text-[9px] opacity-50 font-mono group-hover:opacity-100 transition-opacity">
-                    {n.id}
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-[10px] font-bold text-neutral/40 uppercase tracking-wider flex items-center gap-2">
-              <ArrowRight size={12} /> Edges
-            </h3>
-            <button
-              onClick={() => {
-                if (nodes.length >= 2) {
-                  addEdge({
-                    source: nodes[0].id,
-                    target: nodes[1].id,
-                    label: "New Flow",
-                  });
+        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-[10px] font-bold text-neutral/40 uppercase tracking-wider flex items-center gap-2">
+                <LayoutGrid size={12} /> Nodes
+              </h3>
+              <button
+                onClick={() =>
+                  addNode({ label: "New Node", type: "rectangle" })
                 }
-              }}
-              disabled={nodes.length < 2}
-              className="p-1 text-neutral/40 hover:text-primary hover:bg-primary/10 rounded transition-colors disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed"
-              title="Add Edge"
-            >
-              <Plus size={14} />
-            </button>
-          </div>
-          <ul className="space-y-0.5">
-            {edges.map((e) => (
-              <li
-                key={e.id}
-                onClick={() => setSelectedEdgeId(e.id)}
-                className={`flex items-center gap-2 px-2 py-1.5 cursor-pointer rounded-md text-xs transition-colors group ${
-                  selectedEdgeId === e.id
-                    ? "bg-primary/20 text-primary"
-                    : "text-neutral/70 hover:bg-neutral/10 hover:text-neutral"
-                }`}
+                className="p-1 text-neutral/40 hover:text-primary hover:bg-primary/10 cursor-pointer rounded transition-colors"
+                title="Add Node"
               >
-                <ArrowRight size={12} className="shrink-0" />
-                <span className="truncate">
-                  {e.label || `${e.source} → ${e.target}`}
-                </span>
-                {selectedEdgeId === e.id && (
-                  <button
-                    onClick={(evt) => {
-                      evt.stopPropagation();
-                      removeEdge(e.id);
-                    }}
-                    className="ml-auto p-1 text-red-500 hover:bg-red-500/20 rounded cursor-pointer transition-colors"
-                    title="Delete Edge"
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
+                <Plus size={14} />
+              </button>
+            </div>
+            <ul className="space-y-0.5">
+              {nodes.map((n) => (
+                <li
+                  key={n.id}
+                  onClick={() => setSelectedNodeId(n.id)}
+                  className={`flex items-center gap-2 px-2 py-1.5 cursor-pointer rounded-md text-xs transition-colors group ${
+                    selectedNodeId === n.id
+                      ? "bg-primary/20 text-primary"
+                      : "text-neutral/70 hover:bg-neutral/10 hover:text-neutral"
+                  }`}
+                >
+                  {getNodeIcon(n.type)}
+                  <span className="truncate">{n.label}</span>
+                  {selectedNodeId === n.id ? (
+                    <button
+                      onClick={(evt) => {
+                        evt.stopPropagation();
+                        removeNode(n.id);
+                      }}
+                      className="ml-auto p-1 text-red-500 hover:bg-red-500/20 rounded cursor-pointer transition-colors"
+                      title="Delete Node"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  ) : (
+                    <span className="ml-auto text-[9px] opacity-50 font-mono group-hover:opacity-100 transition-opacity">
+                      {n.id}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-[10px] font-bold text-neutral/40 uppercase tracking-wider flex items-center gap-2">
+                <ArrowRight size={12} /> Edges
+              </h3>
+              <button
+                onClick={() => {
+                  if (nodes.length >= 2) {
+                    addEdge({
+                      source: nodes[0].id,
+                      target: nodes[1].id,
+                      label: "New Flow",
+                    });
+                  }
+                }}
+                disabled={nodes.length < 2}
+                className="p-1 text-neutral/40 hover:text-primary hover:bg-primary/10 rounded transition-colors disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed"
+                title="Add Edge"
+              >
+                <Plus size={14} />
+              </button>
+            </div>
+            <ul className="space-y-0.5">
+              {edges.map((e) => (
+                <li
+                  key={e.id}
+                  onClick={() => setSelectedEdgeId(e.id)}
+                  className={`flex items-center gap-2 px-2 py-1.5 cursor-pointer rounded-md text-xs transition-colors group ${
+                    selectedEdgeId === e.id
+                      ? "bg-primary/20 text-primary"
+                      : "text-neutral/70 hover:bg-neutral/10 hover:text-neutral"
+                  }`}
+                >
+                  <ArrowRight size={12} className="shrink-0" />
+                  <span className="truncate">
+                    {e.label || `${e.source} → ${e.target}`}
+                  </span>
+                  {selectedEdgeId === e.id && (
+                    <button
+                      onClick={(evt) => {
+                        evt.stopPropagation();
+                        removeEdge(e.id);
+                      }}
+                      className="ml-auto p-1 text-red-500 hover:bg-red-500/20 rounded cursor-pointer transition-colors"
+                      title="Delete Edge"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
-      </div>
       )}
     </div>
   );

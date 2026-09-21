@@ -32,7 +32,7 @@ export interface DfdEdge {
   targetHandle?: string;
   label?: string;
   animated?: boolean;
-  style?: "solid" | "dashed" | "dotted";
+  style?: "solid" | "dashed" | "dotted" | "line" | "thick" | "dashed-line" | "bidirectional";
   data?: {
     startPoint?: { x: number; y: number };
     bendPoints?: { x: number; y: number }[];
@@ -106,6 +106,7 @@ interface DiagramState {
   saveLayoutToSupabase: () => Promise<void>;
   resetToBlank: (type: "dfd" | "flowchart" | "er") => void;
   syncCodeToAst: () => void;
+  appendCodeToAst: (codeToAppend?: string) => void;
   syncAstToCode: () => void;
 }
 
@@ -422,19 +423,25 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       const project = await getProject(projectId);
       const ast = project.ast_data as { nodes?: any[]; edges?: any[] } | null;
       const canvasSettings = project.canvas_settings as { direction?: "TB" | "LR" } | null;
+      const loadedNodes = ast?.nodes || [];
+      const loadedEdges = ast?.edges || [];
+      const loadedType = project.diagram_type || "dfd";
+      const loadedDir = canvasSettings?.direction || "LR";
+
+      const initialCode = project.mermaid_code || (loadedNodes.length > 0 ? serializeAstToMermaid(loadedNodes, loadedEdges, loadedDir, loadedType === "er" ? "dfd" : loadedType) : "");
 
       set({
         currentProjectId: projectId,
         projectTitle: project.title,
         projectDescription: project.description || "",
-        nodes: ast?.nodes || [],
-        edges: ast?.edges || [],
-        diagramType: project.diagram_type || "dfd",
-        preferredDiagramType: project.diagram_type || "dfd",
+        nodes: loadedNodes,
+        edges: loadedEdges,
+        diagramType: loadedType,
+        preferredDiagramType: loadedType,
         dfdLevel: project.dfd_level || 0,
         projectStatus: project.status,
-        mermaidCode: project.mermaid_code || "",
-        direction: canvasSettings?.direction || "LR",
+        mermaidCode: initialCode,
+        direction: loadedDir,
         layoutVersion: (get().layoutVersion + 1) % 1000,
       });
 
@@ -456,13 +463,15 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   },
 
   saveProject: async (userId, isDraft) => {
-    const { currentProjectId, nodes, edges, projectTitle, projectDescription, diagramType, projectStatus, direction } = get();
+    const { currentProjectId, nodes, edges, projectTitle, projectDescription, diagramType, projectStatus, direction, mermaidCode } = get();
     
     // Determine target status
     let targetStatus = projectStatus;
     if (isDraft !== undefined) {
       targetStatus = isDraft ? "draft" : "active";
     }
+
+    const currentMermaidCode = mermaidCode || serializeAstToMermaid(nodes, edges, direction, diagramType === "er" ? "dfd" : diagramType);
 
     try {
       if (currentProjectId) {
@@ -475,6 +484,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
           ast_data: { nodes: get().nodes, edges: get().edges },
           dfd_level: get().dfdLevel,
           er_data: erData,
+          mermaid_code: currentMermaidCode,
           canvas_settings: { direction },
           status: targetStatus,
         });
@@ -487,6 +497,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
           diagram_type: diagramType,
           ast_data: { nodes, edges },
           er_data: erData,
+          mermaid_code: currentMermaidCode,
           canvas_settings: { direction },
           status: targetStatus || "active",
         });
@@ -614,6 +625,71 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
     }
   },
 
+  appendCodeToAst: (codeToApply) => {
+    const currentType = get().diagramType;
+    if (currentType === "er") return;
+    const code = codeToApply || get().mermaidCode;
+    if (!code || !code.trim()) {
+      set({ nodes: [], edges: [] });
+      get().syncAstToCode();
+      return;
+    }
+
+    try {
+      const { nodes: parsedNodes, edges: parsedEdges, direction, diagramType } = parseMermaidCode(code, currentType);
+      
+      // GUARD: If code is non-empty but parsing yielded 0 nodes, do NOT wipe canvas!
+      if (parsedNodes.length === 0 && code.trim().split("\n").some(l => l.trim() && !l.trim().startsWith("%%"))) {
+        console.warn("Mermaid parse yielded 0 nodes; suppressing canvas wipe.");
+        return;
+      }
+
+      const existingNodes = get().nodes;
+
+      let maxX = 0;
+      if (existingNodes.length > 0) {
+        existingNodes.forEach(node => {
+          if (node.type === "er-container") return;
+          const nodeRight = (node.position?.x || 0) + (node.width || 180);
+          if (nodeRight > maxX) {
+            maxX = nodeRight;
+          }
+        });
+      }
+
+      const offset = maxX > 0 ? maxX + 250 : 100;
+
+      // Reconcile parsed nodes with existing nodes:
+      // Preserve positions of existing nodes; assign offset positioning to newly introduced nodes.
+      const reconciledNodes: DfdNode[] = parsedNodes.map(pn => {
+        const existing = existingNodes.find(ex => ex.id === pn.id);
+        if (existing) {
+          return {
+            ...existing,
+            ...pn,
+            position: existing.position || { x: offset, y: 100 },
+          };
+        }
+        return {
+          ...pn,
+          position: { x: offset, y: 100 }
+        };
+      });
+
+      set({
+        nodes: reconciledNodes,
+        edges: parsedEdges,
+        direction,
+        diagramType,
+        preferredDiagramType: diagramType,
+      });
+
+      get().applyLayoutAsync();
+      get().syncAstToCode();
+    } catch (err) {
+      console.error("Failed to apply code to AST:", err);
+    }
+  },
   syncAstToCode: () => {
     const { nodes, edges, direction, diagramType } = get();
     if (diagramType === "er") return;

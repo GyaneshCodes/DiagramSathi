@@ -78,6 +78,10 @@ export function LandingPage() {
   const heroRef = useRef<HTMLElement>(null);
   const [heroVisible, setHeroVisible] = useState(true);
   const [splineLoaded, setSplineLoaded] = useState(false);
+  // Guard: only mount Spline after the component has truly committed to DOM.
+  // This prevents React StrictMode's double-mount from triggering Spline's
+  // internal duplicate-key warning (scene object names used as React keys).
+  const [splineMounted, setSplineMounted] = useState(false);
 
   useEffect(() => {
     const el = heroRef.current;
@@ -92,6 +96,13 @@ export function LandingPage() {
     );
     obs.observe(el);
     return () => obs.disconnect();
+  }, []);
+
+  // Set splineMounted after first real commit — defers Spline past StrictMode's
+  // intentional unmount/remount cycle in development, eliminating the
+  // duplicate-key warning emitted by Spline's internal scene object registry.
+  useEffect(() => {
+    setSplineMounted(true);
   }, []);
 
   useEffect(() => {
@@ -214,7 +225,7 @@ export function LandingPage() {
               transition: "opacity 0.8s ease-out",
             }}
           >
-            {heroVisible && (
+            {heroVisible && splineMounted && (
               <Suspense fallback={<SplineLoader />}>
                 <Spline
                   scene="https://prod.spline.design/pFYliVX5JYFvc8x0/scene.splinecode"

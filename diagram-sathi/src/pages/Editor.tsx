@@ -27,6 +27,7 @@ export function Editor() {
     edges,
     projectTitle,
     diagramType,
+    currentProjectId,
     setCurrentProjectId,
     forceLayoutRefresh,
   } = useDiagramStore();
@@ -34,80 +35,136 @@ export function Editor() {
   const [isProjectLoading, setIsProjectLoading] = useState(false);
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null);
   const isInitialMount = useRef(true);
-  const hasLoadedProject = useRef(false);
+  const loadedProjectIdRef = useRef<string | null>(null);
+
+  // Panel Resizing State
+  const MIN_LEFT_WIDTH = 280;
+  const MAX_LEFT_WIDTH = 680;
+  const MIN_RIGHT_WIDTH = 320;
+  const MAX_RIGHT_WIDTH = 720;
+
+  const [leftWidth, setLeftWidth] = useState(280);
+  const [rightWidth, setRightWidth] = useState(340);
+  const [isResizingLeft, setIsResizingLeft] = useState(false);
+  const [isResizingRight, setIsResizingRight] = useState(false);
+
+  const handleLeftMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingLeft(true);
+  };
+
+  const handleRightMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingRight(true);
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isResizingLeft) {
+        const newWidth = Math.min(Math.max(e.clientX, MIN_LEFT_WIDTH), MAX_LEFT_WIDTH);
+        setLeftWidth(newWidth);
+      }
+      if (isResizingRight) {
+        const newWidth = Math.min(Math.max(window.innerWidth - e.clientX, MIN_RIGHT_WIDTH), MAX_RIGHT_WIDTH);
+        setRightWidth(newWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingLeft(false);
+      setIsResizingRight(false);
+    };
+
+    if (isResizingLeft || isResizingRight) {
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+    } else {
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    }
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+  }, [isResizingLeft, isResizingRight]);
 
   // Hydrate Project from URL ID
   useEffect(() => {
     if (!id) {
+      loadedProjectIdRef.current = null;
       setCurrentProjectId(null);
+      setIsProjectLoading(false);
       return;
     }
 
-    // Prevent re-loading if we already loaded this project ID
-    if (hasLoadedProject.current) {
+    // Already hydrated for this ID
+    if (loadedProjectIdRef.current === id) {
+      setIsProjectLoading(false);
       return;
     }
 
-    let cancelled = false;
+    // If this project is already active in memory (e.g. freshly generated from dashboard), reuse state
+    const storeState = useDiagramStore.getState();
+    if (storeState.currentProjectId === id && storeState.nodes.length > 0) {
+      loadedProjectIdRef.current = id;
+      setIsProjectLoading(false);
+      return;
+    }
+
+    let isSubscribed = true;
     setIsProjectLoading(true);
     setProjectLoadError(null);
 
     loadProject(id)
       .then(() => {
-        if (cancelled) return;
-        hasLoadedProject.current = true;
+        if (!isSubscribed) return;
+        loadedProjectIdRef.current = id;
         setIsProjectLoading(false);
-        
-        // Force canvas to re-render by triggering layout refresh
-        // This ensures the canvas picks up the newly loaded nodes/edges
         setTimeout(() => {
           forceLayoutRefresh();
         }, 100);
       })
-      .catch(err => {
-        if (cancelled) return;
+      .catch((err) => {
+        if (!isSubscribed) return;
         console.error("Failed to load project from URL ID", err);
         setIsProjectLoading(false);
         setProjectLoadError(err.message || "Failed to load project");
       });
 
     return () => {
-      cancelled = true;
+      isSubscribed = false;
     };
   }, [id, loadProject, setCurrentProjectId, forceLayoutRefresh]);
 
-  const currentProjectId = useDiagramStore(state => state.currentProjectId);
-  
-  // Sync URL when a new project is created (e.g. from Auto-Save or AI Generation)
   useEffect(() => {
-     if (currentProjectId && !id) {
-        navigate(`/editor/${currentProjectId}`, { replace: true });
-     }
+    if (currentProjectId && !id) {
+      loadedProjectIdRef.current = currentProjectId;
+      navigate(`/editor/${currentProjectId}`, { replace: true });
+    }
   }, [currentProjectId, id, navigate]);
 
-  // Auto-Save Effect (Debounced)
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
       return;
     }
-
-    if (!userId || isProjectLoading || (id && !hasLoadedProject.current)) return;
+    // Prevent auto-save while project is still loading or if URL ID hasn't loaded into memory yet
+    if (!userId || isProjectLoading || (id && loadedProjectIdRef.current !== id)) return;
 
     const timer = setTimeout(() => {
-      // Auto-save logic
-      saveProject(userId).then(() => {
-         // console.log("Auto-saved successfully");
-      }).catch(err => console.error("Auto-save failed", err));
-    }, 2000); // 2 second debounce
+      saveProject(userId).catch((err) => console.error("Auto-save failed", err));
+    }, 2000);
 
     return () => clearTimeout(timer);
   }, [nodes, edges, projectTitle, diagramType, saveProject, userId, isProjectLoading, id]);
 
-  // Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if typing in an input/textarea
       const target = e.target as HTMLElement;
       if (
         target.isContentEditable ||
@@ -124,7 +181,6 @@ export function Editor() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [setActiveTool]);
 
-  // Loading state while project is being fetched
   if (isProjectLoading) {
     return (
       <div className="flex items-center justify-center h-screen w-screen bg-[#0A0A0A]">
@@ -138,7 +194,6 @@ export function Editor() {
     );
   }
 
-  // Error state if project failed to load
   if (projectLoadError) {
     return (
       <div className="flex items-center justify-center h-screen w-screen bg-[#0A0A0A]">
@@ -158,53 +213,76 @@ export function Editor() {
 
   return (
     <div
-      className="flex flex-col w-screen h-screen overflow-hidden bg-bg bg-[radial-gradient(ellipse_at_top,var(--tw-gradient-stops))] from-primary/10 via-bg to-bg font-sans text-neutral"
+      className="flex flex-col w-screen h-screen overflow-hidden bg-bg bg-[radial-gradient(ellipse_at_top,var(--tw-gradient-stops))] from-primary/10 via-bg to-bg font-sans text-neutral select-none"
       data-active-tool={activeTool}
     >
       <Navbar />
-      <div className="flex flex-col md:flex-row flex-1 overflow-hidden relative">
-        {/* Left Panel Wrapper */}
+      <div className="flex flex-col md:flex-row flex-1 overflow-hidden relative p-1.5 gap-2">
+        {/* Resizable Left Panel Wrapper */}
         <div
-          className={`flex transition-all duration-300 ease-in-out ${
-            leftPanelCollapsed ? "w-0" : "w-64 md:w-72 lg:w-80"
-          } relative z-40 h-full`}
+          style={{ width: leftPanelCollapsed ? 0 : `${leftWidth}px` }}
+          className={`flex transition-all ${
+            isResizingLeft ? "duration-0" : "duration-200 ease-out"
+          } relative z-40 h-full shrink-0`}
         >
-          {!leftPanelCollapsed && <LeftLayersPanel />}
+          {!leftPanelCollapsed && (
+            <div className="w-full h-full overflow-hidden rounded-2xl border border-border/70 bg-panel/70 backdrop-blur-xl shadow-2xl flex flex-col">
+              <LeftLayersPanel />
+            </div>
+          )}
           <button
             onClick={() => setLeftPanelCollapsed(!leftPanelCollapsed)}
-            className={`absolute top-1/2 -translate-y-1/2 -right-4 z-50 bg-panel border border-border/60 p-1 rounded-full shadow-lg hover:bg-neutral/10 transition-colors ${
+            className={`absolute top-1/2 -translate-y-1/2 -right-3.5 z-50 bg-panel border border-border/80 p-1.5 rounded-full shadow-xl hover:bg-primary/20 hover:border-primary/50 transition-colors text-neutral ${
               leftPanelCollapsed ? "translate-x-4" : ""
             }`}
           >
-            {leftPanelCollapsed ? (
-              <ChevronRight size={14} />
-            ) : (
-              <ChevronLeft size={14} />
-            )}
+            {leftPanelCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
           </button>
+          {!leftPanelCollapsed && (
+            <div
+              onMouseDown={handleLeftMouseDown}
+              className="absolute top-0 bottom-0 -right-1.5 w-3 hover:w-4 cursor-col-resize z-50 flex items-center justify-center group"
+              title="Drag to resize panel"
+            >
+              <div className="w-1 h-10 rounded-full bg-border/60 group-hover:bg-primary group-hover:scale-y-125 transition-all shadow-md" />
+            </div>
+          )}
         </div>
 
-        <PaneCenterCanvas />
+        {/* Center Canvas Workspace */}
+        <div className="flex-1 h-full relative rounded-2xl overflow-hidden border border-border/40 bg-bg/20 shadow-inner">
+          <PaneCenterCanvas />
+        </div>
 
-        {/* Right Panel Wrapper */}
+        {/* Resizable Right Panel Wrapper */}
         <div
-          className={`flex transition-all duration-300 ease-in-out ${
-            rightPanelCollapsed ? "w-0" : "w-64 md:w-72 lg:w-80"
-          } relative z-40 h-full`}
+          style={{ width: rightPanelCollapsed ? 0 : `${rightWidth}px` }}
+          className={`flex transition-all ${
+            isResizingRight ? "duration-0" : "duration-200 ease-out"
+          } relative z-40 h-full shrink-0`}
         >
+          {!rightPanelCollapsed && (
+            <div
+              onMouseDown={handleRightMouseDown}
+              className="absolute top-0 bottom-0 -left-1.5 w-3 hover:w-4 cursor-col-resize z-50 flex items-center justify-center group"
+              title="Drag to resize panel"
+            >
+              <div className="w-1 h-10 rounded-full bg-border/60 group-hover:bg-primary group-hover:scale-y-125 transition-all shadow-md" />
+            </div>
+          )}
           <button
             onClick={() => setRightPanelCollapsed(!rightPanelCollapsed)}
-            className={`absolute top-1/2 -translate-y-1/2 -left-4 z-50 bg-panel border border-border/60 p-1 rounded-full shadow-lg hover:bg-neutral/10 transition-colors ${
+            className={`absolute top-1/2 -translate-y-1/2 -left-3.5 z-50 bg-panel border border-border/80 p-1.5 rounded-full shadow-xl hover:bg-primary/20 hover:border-primary/50 transition-colors text-neutral ${
               rightPanelCollapsed ? "-translate-x-4" : ""
             }`}
           >
-            {rightPanelCollapsed ? (
-              <ChevronLeft size={14} />
-            ) : (
-              <ChevronRight size={14} />
-            )}
+            {rightPanelCollapsed ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
           </button>
-          {!rightPanelCollapsed && <RightPropertiesPanel />}
+          {!rightPanelCollapsed && (
+            <div className="w-full h-full overflow-hidden rounded-2xl border border-border/70 bg-panel/70 backdrop-blur-xl shadow-2xl flex flex-col">
+              <RightPropertiesPanel />
+            </div>
+          )}
         </div>
       </div>
     </div>
