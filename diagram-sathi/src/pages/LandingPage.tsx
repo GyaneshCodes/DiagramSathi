@@ -7,7 +7,12 @@ import {
   Bot,
   ClipboardEdit,
   Code,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
+import toast from "react-hot-toast";
+import { submitContactMessage } from "../lib/contactService";
 import {
   Suspense,
   lazy,
@@ -147,21 +152,31 @@ export function LandingPage() {
     setSplineLoaded(true);
   }, []);
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    const existing = JSON.parse(
-      localStorage.getItem("diagramsathi_contact_messages") || "[]",
-    );
-    existing.push({ ...formData, timestamp: new Date().toISOString() });
-    localStorage.setItem(
-      "diagramsathi_contact_messages",
-      JSON.stringify(existing),
-    );
+    if (isSubmitting) return;
+
+    setSubmitError(null);
+    setIsSubmitting(true);
+
+    const res = await submitContactMessage(formData);
+    setIsSubmitting(false);
+
+    if (!res.success) {
+      const err = res.error || "Failed to send message. Please try again.";
+      setSubmitError(err);
+      toast.error(err);
+      return;
+    }
+
     setSubmitted(true);
+    toast.success("Thank you! Your message has been sent successfully.");
     setFormData({ name: "", email: "", message: "" });
-    setTimeout(() => setSubmitted(false), 4000);
+    setTimeout(() => setSubmitted(false), 6000);
   }
 
   return (
@@ -408,11 +423,12 @@ export function LandingPage() {
                   id="contact-name"
                   type="text"
                   required
+                  disabled={isSubmitting}
                   value={formData.name}
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, name: e.target.value }))
                   }
-                  className="w-full bg-input border border-input-border rounded-xl px-4 py-3 text-sm text-neutral placeholder-neutral/25 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all duration-300"
+                  className="w-full bg-input border border-input-border rounded-xl px-4 py-3 text-sm text-neutral placeholder-neutral/25 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                   placeholder="Your name"
                 />
               </div>
@@ -427,11 +443,12 @@ export function LandingPage() {
                   id="contact-email"
                   type="email"
                   required
+                  disabled={isSubmitting}
                   value={formData.email}
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, email: e.target.value }))
                   }
-                  className="w-full bg-input border border-input-border rounded-xl px-4 py-3 text-sm text-neutral placeholder-neutral/25 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all duration-300"
+                  className="w-full bg-input border border-input-border rounded-xl px-4 py-3 text-sm text-neutral placeholder-neutral/25 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                   placeholder="you@example.com"
                 />
               </div>
@@ -446,6 +463,7 @@ export function LandingPage() {
                   id="contact-message"
                   required
                   rows={4}
+                  disabled={isSubmitting}
                   value={formData.message}
                   onChange={(e) =>
                     setFormData((prev) => ({
@@ -453,27 +471,50 @@ export function LandingPage() {
                       message: e.target.value,
                     }))
                   }
-                  className="w-full bg-input border border-input-border rounded-xl px-4 py-3 text-sm text-neutral placeholder-neutral/25 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all duration-300 resize-none"
+                  className="w-full bg-input border border-input-border rounded-xl px-4 py-3 text-sm text-neutral placeholder-neutral/25 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all duration-300 resize-none disabled:opacity-50 disabled:cursor-not-allowed"
                   placeholder="Your message..."
                 />
               </div>
-              <button
-                type="submit"
-                className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-full bg-primary text-neutral font-bold text-sm hover:scale-[1.02] hover:shadow-lg hover:shadow-primary/25 active:scale-[0.98] transition-all duration-300 ease-out cursor-pointer"
-              >
-                <Send className="w-4 h-4" />
-                Send Message
-              </button>
+
+              {submitError && (
+                <m.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-start gap-2.5 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs sm:text-sm font-medium"
+                >
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{submitError}</span>
+                </m.div>
+              )}
 
               {submitted && (
-                <m.p
-                  initial={{ opacity: 0, y: 10 }}
+                <m.div
+                  initial={{ opacity: 0, y: -6 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="text-center text-sm text-success font-medium pt-2"
+                  className="flex items-start gap-2.5 p-3 rounded-xl bg-success/10 border border-success/20 text-success text-xs sm:text-sm font-medium"
                 >
-                  ✓ Message saved! We'll get back to you soon.
-                </m.p>
+                  <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>Thank you! Your message has been sent. We'll be in touch soon.</span>
+                </m.div>
               )}
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-full bg-primary text-neutral font-bold text-sm hover:scale-[1.02] hover:shadow-lg hover:shadow-primary/25 active:scale-[0.98] transition-all duration-300 ease-out cursor-pointer disabled:opacity-70 disabled:scale-100 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Sending...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    <span>Send Message</span>
+                  </>
+                )}
+              </button>
             </m.form>
 
             {/* Social Links */}

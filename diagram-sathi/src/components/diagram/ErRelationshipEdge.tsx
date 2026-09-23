@@ -7,6 +7,7 @@ import {
   Position,
 } from "@xyflow/react";
 import { useErDiagramStore } from "../../store/useErDiagramStore";
+import { useTheme } from "../../context/ThemeContext";
 
 /**
  * Renders a relationship edge between two ER schema nodes.
@@ -19,6 +20,9 @@ export const ErRelationshipEdge = ({
   markerEnd,
   style,
 }: EdgeProps) => {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
   const sourceNode = useInternalNode(source);
   const targetNode = useInternalNode(target);
 
@@ -123,6 +127,11 @@ export const ErRelationshipEdge = ({
                    : targetPosition === Position.Top ? ty - labelOffset
                    : ty;
 
+    const edgeStroke = isDark ? "var(--edge-color, #94a3b8)" : "#64748b";
+    const badgeClass = isDark
+      ? "text-slate-200 bg-slate-800 border-slate-700 shadow-sm"
+      : "text-slate-800 bg-white border-slate-300/90 shadow-sm";
+
     return (
       <>
         <BaseEdge
@@ -131,7 +140,7 @@ export const ErRelationshipEdge = ({
           markerEnd={markerEnd}
           style={{
             ...style,
-            stroke: "var(--edge-color, #94a3b8)",
+            stroke: edgeStroke,
             strokeWidth: 2.5,
           }}
         />
@@ -145,7 +154,7 @@ export const ErRelationshipEdge = ({
             }}
             className="nodrag nopan z-10"
           >
-            <span className="text-[12px] font-bold text-neutral bg-panel border border-border px-2 py-0.5 rounded shadow-sm">
+            <span className={`text-[12px] font-bold border px-2 py-0.5 rounded transition-colors duration-150 ${badgeClass}`}>
               {sourceLabel}
             </span>
           </div>
@@ -158,7 +167,7 @@ export const ErRelationshipEdge = ({
             }}
             className="nodrag nopan z-10"
           >
-            <span className="text-[12px] font-bold text-neutral bg-panel border border-border px-2 py-0.5 rounded shadow-sm">
+            <span className={`text-[12px] font-bold border px-2 py-0.5 rounded transition-colors duration-150 ${badgeClass}`}>
               {targetLabel}
             </span>
           </div>

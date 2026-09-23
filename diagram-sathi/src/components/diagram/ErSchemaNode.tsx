@@ -4,13 +4,22 @@ import {
   ER_COLORS,
   type ErColumn,
 } from "../../store/useErDiagramStore";
+import { useTheme } from "../../context/ThemeContext";
 
 const KEY_BADGE_COLORS: Record<string, string> = {
   PK: "#eab308",
   FK: "#3b82f6",
 };
 
-function ColumnRow({ col, font }: { col: ErColumn; font: string }) {
+function ColumnRow({
+  col,
+  font,
+  isDark,
+}: {
+  col: ErColumn;
+  font: string;
+  isDark: boolean;
+}) {
   const rightParts: string[] = [];
 
   // Data type
@@ -25,22 +34,43 @@ function ColumnRow({ col, font }: { col: ErColumn; font: string }) {
   // Extras
   if (col.extras?.trim()) rightParts.push(col.extras.trim());
 
+  // Badge styles
+  const badgeStyle = isDark
+    ? {
+        backgroundColor: KEY_BADGE_COLORS[col.key] + "30",
+        color: KEY_BADGE_COLORS[col.key],
+      }
+    : col.key === "PK"
+      ? {
+          backgroundColor: "#fef3c7",
+          color: "#b45309",
+          border: "1px solid #fde68a",
+        }
+      : {
+          backgroundColor: "#e0f2fe",
+          color: "#0369a1",
+          border: "1px solid #bae6fd",
+        };
+
   return (
     <div
-      className="flex items-center justify-between px-3 py-1.5 border-b last:border-b-0"
+      className="flex items-center justify-between px-3 py-1.5 border-b last:border-b-0 transition-colors duration-150"
       style={{
-        borderColor: "rgba(255,255,255,0.06)",
+        borderColor: isDark
+          ? "rgba(255,255,255,0.06)"
+          : "rgba(0,0,0,0.06)",
         fontFamily: font,
       }}
     >
-      <span className="text-xs font-semibold text-slate-200 flex items-center gap-1.5 shrink-0">
+      <span
+        className={`text-xs font-semibold flex items-center gap-1.5 shrink-0 ${
+          isDark ? "text-slate-200" : "text-slate-800"
+        }`}
+      >
         {col.key !== "none" && (
           <span
-            className="text-[9px] font-bold px-1 py-0.5 rounded"
-            style={{
-              backgroundColor: KEY_BADGE_COLORS[col.key] + "30",
-              color: KEY_BADGE_COLORS[col.key],
-            }}
+            className="text-[9px] font-bold px-1.5 py-0.5 rounded shadow-xs"
+            style={badgeStyle}
           >
             {col.key}
           </span>
@@ -48,7 +78,9 @@ function ColumnRow({ col, font }: { col: ErColumn; font: string }) {
         {col.name}:
       </span>
       <span
-        className="text-xs text-slate-300 ml-3 text-right whitespace-nowrap"
+        className={`text-xs ml-3 text-right whitespace-nowrap ${
+          isDark ? "text-slate-300" : "text-slate-500 font-medium"
+        }`}
         style={{ fontFamily: font }}
       >
         {rightParts.join(" ")}
@@ -58,6 +90,9 @@ function ColumnRow({ col, font }: { col: ErColumn; font: string }) {
 }
 
 export const ErSchemaNode = ({ id, selected }: NodeProps<Node>) => {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
   const schemaId = id.replace("er_", "");
   const schema = useErDiagramStore((s) =>
     s.schemas.find((sc) => sc.id === schemaId)
@@ -82,25 +117,33 @@ export const ErSchemaNode = ({ id, selected }: NodeProps<Node>) => {
     >
       {/* Colored left accent + border */}
       <div
-        className="rounded-lg overflow-hidden"
+        className="rounded-lg overflow-hidden transition-all duration-200"
         style={{
           border: `2px solid ${borderColor}`,
-          background: "#0f172a",
-          boxShadow: selected
-            ? `0 0 0 2px ${borderColor}40, 0 4px 20px rgba(0,0,0,0.4)`
-            : "0 2px 12px rgba(0,0,0,0.3)",
+          background: isDark ? "#0f172a" : "#f8fafc",
+          boxShadow: isDark
+            ? selected
+              ? `0 0 0 2px ${borderColor}40, 0 4px 20px rgba(0,0,0,0.4)`
+              : "0 2px 12px rgba(0,0,0,0.3)"
+            : selected
+              ? `0 0 0 2px ${borderColor}50, 0 8px 24px -4px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.04)`
+              : "0 4px 14px -2px rgba(0,0,0,0.07), 0 1px 4px rgba(0,0,0,0.04)",
         }}
       >
         {/* Header */}
         <div
-          className="flex items-center justify-between px-3 py-2"
+          className="flex items-center justify-between px-3 py-2 transition-colors duration-150"
           style={{
-            background: `${borderColor}18`,
-            borderBottom: `1px solid ${borderColor}40`,
+            background: isDark ? `${borderColor}18` : `${borderColor}14`,
+            borderBottom: isDark
+              ? `1px solid ${borderColor}40`
+              : `1px solid ${borderColor}30`,
           }}
         >
           <span
-            className="text-sm font-bold text-slate-100 tracking-wide"
+            className={`text-sm font-bold tracking-wide ${
+              isDark ? "text-slate-100" : "text-slate-900"
+            }`}
             style={{ fontFamily: font }}
           >
             {schema.name}
@@ -111,14 +154,18 @@ export const ErSchemaNode = ({ id, selected }: NodeProps<Node>) => {
         {schema.columns.length > 0 && (
           <div className="flex flex-col">
             {schema.columns.map((col) => (
-              <ColumnRow key={col.id} col={col} font={font} />
+              <ColumnRow key={col.id} col={col} font={font} isDark={isDark} />
             ))}
           </div>
         )}
 
         {/* Empty state */}
         {schema.columns.length === 0 && (
-          <div className="px-3 py-3 text-[10px] text-slate-500 italic">
+          <div
+            className={`px-3 py-3 text-[10px] italic ${
+              isDark ? "text-slate-500" : "text-slate-400"
+            }`}
+          >
             No columns defined
           </div>
         )}

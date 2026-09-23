@@ -16,7 +16,7 @@ export const TopToolbar = () => {
   ] as const;
 
   return (
-    <div className="absolute top-6 left-1/2 -translate-x-1/2 flex items-center bg-panel/95 backdrop-blur-xl border border-border/60 rounded-xl p-1.5 gap-1.5 shadow-2xl z-50 transition-colors duration-300">
+    <div className="absolute top-6 left-1/2 -translate-x-1/2 flex items-center bg-panel/95 backdrop-blur-xl border border-border/60 rounded-xl p-1.5 gap-1.5 shadow-2xl z-20 transition-colors duration-300">
       <div className="flex items-center gap-1.5">
         {tools.map((t) => (
           <button

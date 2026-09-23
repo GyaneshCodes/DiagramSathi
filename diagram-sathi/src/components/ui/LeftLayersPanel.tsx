@@ -39,8 +39,8 @@ export const LeftLayersPanel = () => {
     isGenerating,
     setIsGenerating,
     applyAIGeneratedDiagram,
+    diagramType,
     preferredDiagramType,
-    setPreferredDiagramType,
     dfdLevel,
     setDfdLevel,
     selectedNodeId,
@@ -56,6 +56,7 @@ export const LeftLayersPanel = () => {
     currentProjectId,
   } = useDiagramStore();
 
+  const currentType = diagramType || preferredDiagramType || "flowchart";
   const { session } = useAuth();
   const [loadingStep, setLoadingStep] = useState(0);
   const hasAutoTriggeredRef = useRef(false);
@@ -73,11 +74,11 @@ export const LeftLayersPanel = () => {
     try {
       const result = await generateDiagramFromDescription(
         projectDescription,
-        preferredDiagramType,
+        currentType,
         dfdLevel,
       );
 
-      if (preferredDiagramType === "er") {
+      if (currentType === "er") {
         const erResult = result as { schemas: any[]; relationships: any[] };
         await useErDiagramStore
           .getState()
@@ -210,41 +211,37 @@ export const LeftLayersPanel = () => {
           className="w-full text-xs bg-bg/50 text-neutral border border-border/80 rounded-md p-2 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary resize-none h-20 placeholder:text-neutral/40"
         />
 
-        {/* Mutable Diagram Type Toggle */}
+        {/* Frozen Diagram Type Toggle with Separators */}
         <div className="flex flex-col gap-2">
-          <div className="flex text-[10px] rounded-md overflow-hidden border border-border/80 p-0.5 bg-bg/50">
-            {(["dfd", "flowchart", "er"] as const).map((type) => (
-              <button
-                key={type}
-                onClick={() => {
-                  setPreferredDiagramType(type);
-                  if (type === "er") {
-                    useDiagramStore.getState().setDiagramType("er");
-                    // Sync ER store to main store to show ER nodes
-                    useErDiagramStore.getState().syncToMainStore();
-                  } else {
-                    useDiagramStore.getState().setDiagramType(type);
-                  }
-                }}
-                className={`flex-1 py-1.5 text-center font-medium rounded-sm transition-colors ${
-                  preferredDiagramType === type
-                    ? "bg-primary text-white shadow-sm"
-                    : "text-neutral/60 hover:text-neutral hover:bg-neutral/10"
-                }`}
-              >
-                {type.toUpperCase()}
-              </button>
-            ))}
+          <div className="flex text-[10px] rounded-md overflow-hidden border border-border/80 p-0.5 bg-bg/50 divide-x divide-border/70">
+            {(["dfd", "flowchart", "er"] as const).map((type) => {
+              const isActive = currentType === type;
+              return (
+                <button
+                  key={type}
+                  disabled
+                  type="button"
+                  tabIndex={-1}
+                  className={`flex-1 py-1.5 text-center font-medium rounded-xs select-none transition-colors ${
+                    isActive
+                      ? "bg-primary text-white shadow-sm cursor-default"
+                      : "text-neutral/30 opacity-35 cursor-not-allowed pointer-events-none"
+                  }`}
+                >
+                  {type.toUpperCase()}
+                </button>
+              );
+            })}
           </div>
           <p className="text-[10px] text-neutral/50 italic px-1">
-            {preferredDiagramType === "flowchart"
+            {currentType === "flowchart"
               ? "The Step-by-Step Logic Builder. Focus on the sequential 'how-to' of a task."
-              : preferredDiagramType === "er"
+              : currentType === "er"
                 ? "The Data Relationship Mapper. Design database schemas and their connections."
                 : "The System Information Map. Focus on the movement and transformation of data."}
           </p>
 
-          {preferredDiagramType === "dfd" && (
+          {currentType === "dfd" && (
             <div className="flex flex-col gap-1 mt-1">
               <div className="flex items-center gap-1 px-1">
                 <span className="text-[10px] font-semibold text-neutral/50 uppercase">
@@ -258,12 +255,12 @@ export const LeftLayersPanel = () => {
                   </div>
                 </div>
               </div>
-              <div className="flex text-[10px] rounded-md overflow-hidden border border-border/80 p-0.5 bg-bg/50">
+              <div className="flex text-[10px] rounded-md overflow-hidden border border-border/80 p-0.5 bg-bg/50 divide-x divide-border/70">
                 {[0, 1].map((level) => (
                   <button
                     key={level}
                     onClick={() => setDfdLevel(level)}
-                    className={`flex-1 py-1.5 text-center font-medium rounded-sm transition-colors ${
+                    className={`flex-1 py-1.5 text-center font-medium rounded-xs transition-colors ${
                       dfdLevel === level
                         ? "bg-primary text-white shadow-sm"
                         : "text-neutral/60 hover:text-neutral hover:bg-neutral/10"

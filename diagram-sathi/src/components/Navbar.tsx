@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Settings, UserCircle, Share2, Download, X, ArrowLeft, Save, Pencil } from "lucide-react";
+import { UserCircle, User, LayoutDashboard, LogOut, Share2, Download, X, ArrowLeft, Save, Pencil } from "lucide-react";
 import { toPng } from "html-to-image";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -13,13 +13,39 @@ export const Navbar = () => {
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isTransparent, setIsTransparent] = useState(true);
   const [exportScope, setExportScope] = useState<"entire" | "selected">("entire");
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
-  const { session } = useAuth();
+  const { session, user, profile, signOut } = useAuth();
   const { saveProject, projectTitle, setProjectTitle, projectStatus, currentProjectId } = useDiagramStore();
 
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const renameInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+        setIsProfileMenuOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsProfileMenuOpen(false);
+      }
+    };
+
+    if (isProfileMenuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("keydown", handleKeyDown);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isProfileMenuOpen]);
 
   useEffect(() => {
     if (isRenaming) {
@@ -222,7 +248,7 @@ export const Navbar = () => {
 
   return (
     <>
-      <div className="h-14 bg-panel/80 backdrop-blur-md border-b border-border/50 flex items-center justify-between px-6 shrink-0 z-20">
+      <div className="relative z-50 h-14 bg-panel/80 backdrop-blur-md border-b border-border/50 flex items-center justify-between px-6 shrink-0">
         <div className="flex items-center gap-4">
           <button 
             onClick={() => navigate("/home")}
@@ -262,18 +288,88 @@ export const Navbar = () => {
           </div>
         </div>
         
-        <div className="flex items-center gap-5">
+        <div className="flex items-center gap-4">
           <ThemeToggle />
-          <button className="text-neutral/70 hover:text-neutral transition-colors">
-            <Settings size={20} />
-          </button>
-          <button className="text-neutral/70 hover:text-neutral transition-colors">
-            <UserCircle size={24} strokeWidth={1.5} />
-          </button>
+
+          {/* Profile Button & Menu */}
+          <div className="relative" ref={profileMenuRef}>
+            <button
+              onClick={() => setIsProfileMenuOpen((prev) => !prev)}
+              className="flex items-center justify-center rounded-full p-0.5 text-neutral/70 hover:text-neutral hover:ring-2 hover:ring-primary/40 transition-all cursor-pointer"
+              title={profile?.display_name || user?.email || "Account"}
+              aria-label="User menu"
+              aria-expanded={isProfileMenuOpen}
+            >
+              {profile?.avatar_url ? (
+                <img
+                  src={profile.avatar_url}
+                  alt="Profile"
+                  className="w-6 h-6 rounded-full object-cover ring-1 ring-border"
+                />
+              ) : (
+                <UserCircle size={22} strokeWidth={1.5} />
+              )}
+            </button>
+
+            {isProfileMenuOpen && (
+              <div className="absolute right-0 mt-2 w-52 bg-panel border border-border rounded-xl shadow-xl py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150 flex flex-col">
+                <div className="px-3 py-2 border-b border-border mb-1">
+                  <p className="text-xs font-semibold text-neutral truncate">
+                    {profile?.display_name || "Architect"}
+                  </p>
+                  <p className="text-[11px] text-neutral/50 truncate font-mono">
+                    {user?.email || "Signed in"}
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => {
+                    setIsProfileMenuOpen(false);
+                    navigate("/profile");
+                  }}
+                  className="w-full px-3 py-1.5 text-xs font-medium text-neutral/80 hover:text-neutral hover:bg-neutral/10 flex items-center gap-2.5 transition-colors text-left cursor-pointer"
+                >
+                  <User size={14} className="text-neutral/60" /> Profile
+                </button>
+
+                <button
+                  onClick={() => {
+                    setIsProfileMenuOpen(false);
+                    navigate("/home");
+                  }}
+                  className="w-full px-3 py-1.5 text-xs font-medium text-neutral/80 hover:text-neutral hover:bg-neutral/10 flex items-center gap-2.5 transition-colors text-left cursor-pointer"
+                >
+                  <LayoutDashboard size={14} className="text-neutral/60" /> Dashboard
+                </button>
+
+                <div className="h-px bg-border my-1" />
+
+                <button
+                  onClick={async () => {
+                    setIsProfileMenuOpen(false);
+                    try {
+                      await signOut();
+                      toast.success("Signed out successfully");
+                      navigate("/signin", { replace: true });
+                    } catch {
+                      toast.error("Failed to sign out");
+                    }
+                  }}
+                  className="w-full px-3 py-1.5 text-xs font-medium text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 flex items-center gap-2.5 transition-colors text-left cursor-pointer"
+                >
+                  <LogOut size={14} /> Sign Out
+                </button>
+              </div>
+            )}
+          </div>
           
           <div className="w-px h-5 bg-border mx-1"></div>
           
-          <button className="text-slate-300 hover:text-white flex items-center gap-2 text-sm font-medium transition-colors">
+          <button
+            onClick={() => toast("Share feature is coming soon!", { icon: "🚀" })}
+            className="text-slate-300 hover:text-white flex items-center gap-2 text-sm font-medium transition-colors cursor-pointer"
+            title="Share diagram"
+          >
             <Share2 size={16} /> SHARE
           </button>
 
@@ -299,7 +395,7 @@ export const Navbar = () => {
       </div>
 
       {isExportOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-panel border border-border rounded-xl shadow-2xl w-[400px] p-6 flex flex-col gap-6 animate-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-bold text-slate-100">Export Diagram</h3>
