@@ -52,9 +52,10 @@ function App() {
               <Route path="/trash" element={<Trash />} />
             </Route>
 
-            {/* Editor Route (Standalone fullscreen, no sidebar) */}
+            {/* Editor Routes: /editor is open to guests & users; /editor/:id requires auth */}
+            <Route path="/editor" element={<Editor />} />
             <Route
-              path="/editor/:id?"
+              path="/editor/:id"
               element={
                 <ProtectedRoute>
                   <Editor />

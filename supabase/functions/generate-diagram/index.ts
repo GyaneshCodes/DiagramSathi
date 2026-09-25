@@ -29,9 +29,20 @@ Rules for ALL diagrams:
 
   if (preferredType === 'dfd') {
     if (dfdLevel === 0) {
-      return `${baseRules}\n\nGenerating DFD Level 0 (Context Diagram). One central process (circle), external entities (rectangle), data stores (cylinder). All flows go TO or FROM the single process.`;
+      return `${baseRules}\n\nGenerating DFD Level 0 (Context Diagram).
+CRITICAL LEVEL 0 RULES:
+- Exactly ONE central process (type: "circle").
+- External entities (type: "rectangle") represent external actors/sources/sinks.
+- Data stores (type: "cylinder") represent databases.
+- ALL data flows (edges) MUST connect directly between an External Entity and the central process, or between the central process and a Data Store.
+- FORBIDDEN: NEVER connect external entities directly to each other in Level 0.`;
     }
-    return `${baseRules}\n\nGenerating DFD Level 1. Multiple processes (circle), entities (rectangle), stores (cylinder). Show numbered sub-processes with clear data flows.`;
+    return `${baseRules}\n\nGenerating DFD Level 1 (Decomposed Sub-Processes).
+CRITICAL LEVEL 1 RULES:
+- Include 3 to 5 sub-processes (type: "circle"). Process labels MUST begin with sequential numbers (e.g. "1. Borrow Book", "2. Return Book", "3. Manage Catalog").
+- External entities (type: "rectangle") represent input/output actors.
+- Data stores (type: "cylinder") represent shared persistent tables/stores.
+- Data flows MUST clearly connect entities to sub-processes, sub-processes to data stores, or sub-processes to each other.`;
   }
   
   if (preferredType === 'er') {

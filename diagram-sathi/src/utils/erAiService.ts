@@ -43,6 +43,10 @@ interface AIErRelationship {
   source?: string;
   target?: string;
   type?: string;
+  sourceColumn?: string;
+  targetColumn?: string;
+  sourceKey?: string;
+  targetKey?: string;
 }
 
 interface AIErResponse {
@@ -115,9 +119,9 @@ export function normalizeAIErResponse(
       if (!aiRel.source || !aiRel.target) continue;
 
       // Verify source and target exist in schemas
-      const sourceExists = schemas.some((s) => s.id === aiRel.source);
-      const targetExists = schemas.some((s) => s.id === aiRel.target);
-      if (!sourceExists || !targetExists) continue;
+      const sourceSchema = schemas.find((s) => s.id === aiRel.source);
+      const targetSchema = schemas.find((s) => s.id === aiRel.target);
+      if (!sourceSchema || !targetSchema) continue;
 
       const type: ErRelationshipType = VALID_REL_TYPES.includes(
         aiRel.type as ErRelationshipType
@@ -125,11 +129,50 @@ export function normalizeAIErResponse(
         ? (aiRel.type as ErRelationshipType)
         : "one-to-many";
 
+      // Resolve source column
+      let sourceColumnId: string | undefined = undefined;
+      const explicitSrc = aiRel.sourceColumn || aiRel.sourceKey;
+      if (explicitSrc) {
+        const match = sourceSchema.columns.find(
+          (c) => c.name.toLowerCase() === explicitSrc.toLowerCase()
+        );
+        if (match) sourceColumnId = match.id;
+      }
+      if (!sourceColumnId) {
+        const fkMatch =
+          sourceSchema.columns.find(
+            (c) =>
+              c.key === "FK" &&
+              (c.name.toLowerCase().includes(targetSchema.name.toLowerCase()) ||
+                c.extras?.toLowerCase().includes(targetSchema.name.toLowerCase()))
+          ) || sourceSchema.columns.find((c) => c.key === "FK");
+        if (fkMatch) sourceColumnId = fkMatch.id;
+      }
+
+      // Resolve target column
+      let targetColumnId: string | undefined = undefined;
+      const explicitTgt = aiRel.targetColumn || aiRel.targetKey;
+      if (explicitTgt) {
+        const match = targetSchema.columns.find(
+          (c) => c.name.toLowerCase() === explicitTgt.toLowerCase()
+        );
+        if (match) targetColumnId = match.id;
+      }
+      if (!targetColumnId) {
+        const pkMatch =
+          targetSchema.columns.find((c) => c.key === "PK") ||
+          targetSchema.columns.find((c) => c.name.toLowerCase() === "id") ||
+          targetSchema.columns[0];
+        if (pkMatch) targetColumnId = pkMatch.id;
+      }
+
       relationships.push({
         id: `rel_${uid()}`,
         sourceSchemaId: aiRel.source,
         targetSchemaId: aiRel.target,
         type,
+        sourceColumnId,
+        targetColumnId,
       });
     }
   }

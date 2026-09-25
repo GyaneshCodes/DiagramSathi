@@ -74,16 +74,18 @@ export function parseErCode(code: string): ParseResult {
     // Check for relationship lines (not inside a block)
     if (!insideBlock) {
       const relMatch = line.match(
-        /^(\w+)\s*(<>|<|>|-)\s*(\w+)$/
+        /^([\w]+)(?:\.([\w]+))?\s*(<>|<|>|-)\s*([\w]+)(?:\.([\w]+))?$/
       );
       if (relMatch) {
-        const [, source, symbol, target] = relMatch;
+        const [, source, srcCol, symbol, target, tgtCol] = relMatch;
         const type = SYMBOL_TO_TYPE[symbol] || "one-to-many";
         relationships.push({
           id: `rel_${uid()}`,
           sourceSchemaId: source,
           targetSchemaId: target,
           type,
+          sourceColumnId: srcCol,
+          targetColumnId: tgtCol,
         });
         continue;
       }
@@ -141,6 +143,29 @@ export function parseErCode(code: string): ParseResult {
   // If schema wasn't closed properly, still add it
   if (currentSchema) {
     schemas.push(currentSchema);
+  }
+
+  // Resolve column names to column IDs for relationships
+  for (const rel of relationships) {
+    const srcSchema = schemas.find((s) => s.id === rel.sourceSchemaId);
+    const tgtSchema = schemas.find((s) => s.id === rel.targetSchemaId);
+
+    if (rel.sourceColumnId && srcSchema) {
+      const col = srcSchema.columns.find(
+        (c) =>
+          c.name.toLowerCase() === rel.sourceColumnId?.toLowerCase() ||
+          c.id === rel.sourceColumnId
+      );
+      if (col) rel.sourceColumnId = col.id;
+    }
+    if (rel.targetColumnId && tgtSchema) {
+      const col = tgtSchema.columns.find(
+        (c) =>
+          c.name.toLowerCase() === rel.targetColumnId?.toLowerCase() ||
+          c.id === rel.targetColumnId
+      );
+      if (col) rel.targetColumnId = col.id;
+    }
   }
 
   return { schemas, relationships };
@@ -292,7 +317,18 @@ export function serializeErToCode(
   // Relationships
   for (const rel of relationships) {
     const symbol = TYPE_TO_SYMBOL[rel.type] || "<";
-    parts.push(`${rel.sourceSchemaId} ${symbol} ${rel.targetSchemaId}`);
+    const srcSchema = schemas.find((s) => s.id === rel.sourceSchemaId);
+    const tgtSchema = schemas.find((s) => s.id === rel.targetSchemaId);
+    const srcCol = srcSchema?.columns.find((c) => c.id === rel.sourceColumnId);
+    const tgtCol = tgtSchema?.columns.find((c) => c.id === rel.targetColumnId);
+
+    if (srcCol && tgtCol) {
+      parts.push(
+        `${rel.sourceSchemaId}.${srcCol.name} ${symbol} ${rel.targetSchemaId}.${tgtCol.name}`
+      );
+    } else {
+      parts.push(`${rel.sourceSchemaId} ${symbol} ${rel.targetSchemaId}`);
+    }
   }
 
   return parts.join("\n").trim();

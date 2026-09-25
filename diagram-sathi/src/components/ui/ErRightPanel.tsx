@@ -367,6 +367,63 @@ export const ErRightPanel = () => {
             </select>
           </div>
         </div>
+
+        {/* Column Selectors */}
+        {(() => {
+          const sourceSchema = schemas.find(
+            (s) => s.id === selectedRelationship.sourceSchemaId
+          );
+          const targetSchema = schemas.find(
+            (s) => s.id === selectedRelationship.targetSchemaId
+          );
+
+          return (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] font-bold text-neutral/40 uppercase tracking-wider mb-1.5 block">
+                  Source Column (FK)
+                </label>
+                <select
+                  value={selectedRelationship.sourceColumnId || ""}
+                  onChange={(e) =>
+                    updateRelationship(selectedRelationship.id, {
+                      sourceColumnId: e.target.value || undefined,
+                    })
+                  }
+                  className="w-full text-xs bg-bg border border-border/80 rounded block p-2 text-neutral outline-none focus:border-primary cursor-pointer truncate"
+                >
+                  <option value="">Auto (Best Match)</option>
+                  {sourceSchema?.columns.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} {c.key !== "none" ? `(${c.key})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-neutral/40 uppercase tracking-wider mb-1.5 block">
+                  Target Column (PK)
+                </label>
+                <select
+                  value={selectedRelationship.targetColumnId || ""}
+                  onChange={(e) =>
+                    updateRelationship(selectedRelationship.id, {
+                      targetColumnId: e.target.value || undefined,
+                    })
+                  }
+                  className="w-full text-xs bg-bg border border-border/80 rounded block p-2 text-neutral outline-none focus:border-primary cursor-pointer truncate"
+                >
+                  <option value="">Auto (Best Match)</option>
+                  {targetSchema?.columns.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} {c.key !== "none" ? `(${c.key})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     );
   }

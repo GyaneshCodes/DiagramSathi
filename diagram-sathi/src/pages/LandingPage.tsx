@@ -1,4 +1,5 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import {
   ArrowRight,
   Github,
@@ -73,6 +74,16 @@ const cardVariants = {
 };
 
 export function LandingPage() {
+  const { user, isLoading } = useAuth();
+  const navigate = useNavigate();
+
+  // If user has an active session used within the last 7 days, take them straight to dashboard
+  useEffect(() => {
+    if (!isLoading && user) {
+      navigate("/home", { replace: true });
+    }
+  }, [user, isLoading, navigate]);
+
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -212,10 +223,10 @@ export function LandingPage() {
               Contact
             </a>
             <Link
-              to="/signin"
+              to={user ? "/home" : "/editor"}
               className="group flex items-center gap-2 px-5 py-2.5 rounded-full bg-neutral/10 border border-border/50 text-neutral font-semibold text-sm hover:bg-neutral/20 hover:border-border transition-all duration-300 ease-out"
             >
-              ENTER APP
+              {user ? "DASHBOARD" : "ENTER APP"}
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </Link>
           </div>
@@ -277,10 +288,10 @@ export function LandingPage() {
                 losing control over your architecture.
               </p>
               <Link
-                to="/signin"
+                to={user ? "/home" : "/editor"}
                 className="pointer-events-auto inline-flex items-center gap-2.5 mt-7 px-7 py-3.5 rounded-full bg-primary text-neutral font-bold text-sm hover:scale-[1.03] hover:shadow-lg hover:shadow-primary/25 active:scale-[0.98] transition-all duration-300 ease-out"
               >
-                Start Building
+                {user ? "Go to Dashboard" : "Start Building Free"}
                 <ArrowRight className="w-4 h-4" />
               </Link>
             </div>

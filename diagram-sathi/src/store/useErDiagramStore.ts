@@ -73,6 +73,8 @@ export interface ErRelationship {
   sourceSchemaId: string;
   targetSchemaId: string;
   type: ErRelationshipType;
+  sourceColumnId?: string;
+  targetColumnId?: string;
 }
 
 // ── Store Interface ─────────────────────────────────────────────────
@@ -95,7 +97,13 @@ interface ErDiagramState {
   removeColumn: (schemaId: string, columnId: string) => void;
 
   // Relationship CRUD
-  addRelationship: (sourceId: string, targetId: string, type?: ErRelationshipType) => void;
+  addRelationship: (
+    sourceId: string,
+    targetId: string,
+    type?: ErRelationshipType,
+    sourceColumnId?: string,
+    targetColumnId?: string
+  ) => void;
   updateRelationship: (id: string, data: Partial<Omit<ErRelationship, "id">>) => void;
   removeRelationship: (id: string) => void;
 
@@ -109,7 +117,7 @@ interface ErDiagramState {
   syncSchemasToCode: () => void;
 
   // Sync to main store for rendering
-  syncToMainStore: (customNodes?: DfdNode[]) => void;
+  syncToMainStore: (customNodes?: DfdNode[], customEdges?: DfdEdge[]) => void;
 
   // AI generation
   applyAIGeneratedEr: (schemas: ErSchema[], relationships: ErRelationship[]) => Promise<void>;
@@ -280,13 +288,15 @@ export const useErDiagramStore = create<ErDiagramState>((set, get) => ({
 
   // ── Relationship CRUD ─────────────────────────────────────────
 
-  addRelationship: (sourceId, targetId, type = "one-to-many") => {
+  addRelationship: (sourceId, targetId, type = "one-to-many", sourceColumnId, targetColumnId) => {
     const id = `rel_${uid()}`;
     const newRel: ErRelationship = {
       id,
       sourceSchemaId: sourceId,
       targetSchemaId: targetId,
       type,
+      sourceColumnId,
+      targetColumnId,
     };
     set((s) => ({ relationships: [...s.relationships, newRel] }));
     get().syncSchemasToCode();
@@ -364,10 +374,11 @@ export const useErDiagramStore = create<ErDiagramState>((set, get) => ({
 
   // ── Sync to Main Store ────────────────────────────────────────
 
-  syncToMainStore: (customNodes) => {
+  syncToMainStore: (customNodes, customEdges) => {
     const { schemas, relationships } = get();
     const mainStore = useDiagramStore.getState();
     const existingNodes = mainStore.nodes;
+    const existingEdges = mainStore.edges;
 
     // Preserve positions from existing nodes (updated by canvas dragging)
     const posMap = new Map<string, { x: number; y: number }>();
@@ -433,12 +444,83 @@ export const useErDiagramStore = create<ErDiagramState>((set, get) => ({
     const containerNode = calcContainerNode(schemaNodes);
 
     // Convert relationships → DfdEdges
-    const erEdges: DfdEdge[] = relationships.map((r) => ({
-      id: `er_rel_${r.id}`,
-      source: `er_${r.sourceSchemaId}`,
-      target: `er_${r.targetSchemaId}`,
-      type: "er-relationship",
-    }));
+    const erEdges: DfdEdge[] = relationships.map((r) => {
+      const sourceSchema = schemas.find((s) => s.id === r.sourceSchemaId);
+      const targetSchema = schemas.find((s) => s.id === r.targetSchemaId);
+
+      let sourceColId = r.sourceColumnId;
+      let targetColId = r.targetColumnId;
+
+      // Auto-resolve FK if not explicitly set
+      if (!sourceColId && sourceSchema && targetSchema) {
+        const fkMatch = sourceSchema.columns.find(
+          (c) =>
+            c.key === "FK" &&
+            (c.name.toLowerCase().includes(targetSchema.name.toLowerCase()) ||
+              c.extras?.toLowerCase().includes(targetSchema.name.toLowerCase()))
+        );
+        const anyFk = sourceSchema.columns.find((c) => c.key === "FK");
+        sourceColId = fkMatch?.id || anyFk?.id || sourceSchema.columns[0]?.id;
+      }
+
+      // Auto-resolve PK if not explicitly set
+      if (!targetColId && targetSchema) {
+        const pkCol = targetSchema.columns.find((c) => c.key === "PK");
+        const idCol = targetSchema.columns.find(
+          (c) => c.name.toLowerCase() === "id"
+        );
+        targetColId = pkCol?.id || idCol?.id || targetSchema.columns[0]?.id;
+      }
+
+      // Determine Left/Right handles based on horizontal positioning
+      const srcNode = schemaNodes.find((n) => n.id === `er_${r.sourceSchemaId}`);
+      const tgtNode = schemaNodes.find((n) => n.id === `er_${r.targetSchemaId}`);
+      const srcX = srcNode?.position?.x ?? 0;
+      const tgtX = tgtNode?.position?.x ?? 0;
+
+      let srcSide: "left" | "right" = "right";
+      let tgtSide: "left" | "right" = "left";
+
+      if (tgtX > srcX + 60) {
+        srcSide = "right";
+        tgtSide = "left";
+      } else if (srcX > tgtX + 60) {
+        srcSide = "left";
+        tgtSide = "right";
+      } else {
+        // Vertically aligned: exit and enter on the same outer side
+        srcSide = srcX < 400 ? "right" : "left";
+        tgtSide = srcSide;
+      }
+
+      const sourceHandle = sourceColId
+        ? (srcSide === "right" ? `${sourceColId}-right` : `${sourceColId}-left-src`)
+        : (srcSide === "right" ? "right-source" : "left-source");
+      const targetHandle = targetColId
+        ? (tgtSide === "left" ? `${targetColId}-left` : `${targetColId}-right-tgt`)
+        : (tgtSide === "left" ? "left-target" : "right-target");
+
+      const edgeId = `er_rel_${r.id}`;
+      const layoutEdge =
+        customEdges?.find((ce) => ce.id === edgeId) ||
+        existingEdges.find((ee) => ee.id === edgeId);
+
+      return {
+        id: edgeId,
+        source: `er_${r.sourceSchemaId}`,
+        target: `er_${r.targetSchemaId}`,
+        sourceHandle,
+        targetHandle,
+        type: "er-relationship",
+        data: {
+          sourceColumnId: sourceColId,
+          targetColumnId: targetColId,
+          startPoint: layoutEdge?.data?.startPoint,
+          bendPoints: layoutEdge?.data?.bendPoints || [],
+          endPoint: layoutEdge?.data?.endPoint,
+        },
+      };
+    });
 
     const allNodes = containerNode
       ? [containerNode, ...schemaNodes]
@@ -455,16 +537,16 @@ export const useErDiagramStore = create<ErDiagramState>((set, get) => ({
     get().syncSchemasToCode();
     
     // Apply layout automatically
-    const { nodes } = await layoutErDiagram(schemas, relationships, "LR");
-    get().syncToMainStore(nodes);
+    const { nodes, edges } = await layoutErDiagram(schemas, relationships, "LR");
+    get().syncToMainStore(nodes, edges);
   },
 
   // ── Layout ───────────────────────────────────────────────────
 
   applyLayout: async () => {
     const { schemas, relationships } = get();
-    const { nodes } = await layoutErDiagram(schemas, relationships, "LR");
-    get().syncToMainStore(nodes);
+    const { nodes, edges } = await layoutErDiagram(schemas, relationships, "LR");
+    get().syncToMainStore(nodes, edges);
   },
 
   // ── Persistence ───────────────────────────────────────────────

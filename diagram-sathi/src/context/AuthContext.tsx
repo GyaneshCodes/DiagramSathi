@@ -149,6 +149,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return finalProfile;
   };
 
+  // 7-Day Inactivity Session Rules
+  const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+  const LAST_ACTIVE_KEY = "ds_last_active_at";
+
+  const isSessionActiveWithin7Days = () => {
+    try {
+      const raw = localStorage.getItem(LAST_ACTIVE_KEY);
+      if (!raw) return true; // Treat fresh session as valid
+      const lastActive = parseInt(raw, 10);
+      if (isNaN(lastActive)) return true;
+      return Date.now() - lastActive < SEVEN_DAYS_MS;
+    } catch {
+      return true;
+    }
+  };
+
+  const touchSessionActivity = () => {
+    try {
+      localStorage.setItem(LAST_ACTIVE_KEY, String(Date.now()));
+    } catch {}
+  };
+
+  const clearSessionActivity = () => {
+    try {
+      localStorage.removeItem(LAST_ACTIVE_KEY);
+    } catch {}
+  };
+
   useEffect(() => {
     let mounted = true;
 
@@ -167,6 +195,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const {
           data: { session: currentSession },
         } = await supabase.auth.getSession();
+
+        // Check 7-day inactivity rule
+        if (currentSession?.user) {
+          if (!isSessionActiveWithin7Days()) {
+            console.warn(
+              "[Auth] User has not used DiagramSathi for > 7 days. Automatically logging out.",
+            );
+            clearSessionActivity();
+            await supabase.auth.signOut();
+            if (mounted) {
+              setSession(null);
+              setUser(null);
+              setProfile(null);
+            }
+            return;
+          }
+          touchSessionActivity();
+        }
 
         if (mounted) {
           setSession(currentSession);
@@ -195,6 +241,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
       if (!mounted) return;
 
+      if (newSession?.user) {
+        touchSessionActivity();
+      } else {
+        clearSessionActivity();
+      }
+
       setSession(newSession);
       setUser(newSession?.user ?? null);
 
@@ -219,6 +271,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = async () => {
+    // Clear session activity timestamp on explicit sign-out
+    clearSessionActivity();
+
     // Optimistically clear local state regardless of server response to prevent UI hanging
     setUser(null);
     setSession(null);

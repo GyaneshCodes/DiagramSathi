@@ -54,7 +54,7 @@ function ColumnRow({
 
   return (
     <div
-      className="flex items-center justify-between px-3 py-1.5 border-b last:border-b-0 transition-colors duration-150"
+      className="group/row relative flex items-center justify-between px-3 py-1.5 border-b last:border-b-0 transition-colors duration-150"
       style={{
         borderColor: isDark
           ? "rgba(255,255,255,0.06)"
@@ -62,6 +62,20 @@ function ColumnRow({
         fontFamily: font,
       }}
     >
+      {/* Left handles */}
+      <Handle
+        type="target"
+        position={Position.Left}
+        id={`${col.id}-left`}
+        className="!w-2 !h-2 !min-w-0 !min-h-0 !rounded-full !bg-blue-500 !border !border-white/80 dark:!border-slate-900 !opacity-0 group-hover/row:!opacity-100 transition-opacity !-left-1"
+      />
+      <Handle
+        type="source"
+        position={Position.Left}
+        id={`${col.id}-left-src`}
+        className="!w-2 !h-2 !min-w-0 !min-h-0 !rounded-full !bg-blue-500 !border !border-white/80 dark:!border-slate-900 !opacity-0 group-hover/row:!opacity-100 transition-opacity !-left-1"
+      />
+
       <span
         className={`text-xs font-semibold flex items-center gap-1.5 shrink-0 ${
           isDark ? "text-slate-200" : "text-slate-800"
@@ -85,6 +99,20 @@ function ColumnRow({
       >
         {rightParts.join(" ")}
       </span>
+
+      {/* Right handles */}
+      <Handle
+        type="source"
+        position={Position.Right}
+        id={`${col.id}-right`}
+        className="!w-2 !h-2 !min-w-0 !min-h-0 !rounded-full !bg-blue-500 !border !border-white/80 dark:!border-slate-900 !opacity-0 group-hover/row:!opacity-100 transition-opacity !-right-1"
+      />
+      <Handle
+        type="target"
+        position={Position.Right}
+        id={`${col.id}-right-tgt`}
+        className="!w-2 !h-2 !min-w-0 !min-h-0 !rounded-full !bg-blue-500 !border !border-white/80 dark:!border-slate-900 !opacity-0 group-hover/row:!opacity-100 transition-opacity !-right-1"
+      />
     </div>
   );
 }

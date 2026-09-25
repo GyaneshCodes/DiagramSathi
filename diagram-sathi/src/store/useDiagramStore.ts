@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { layoutDfdDiagram } from "../utils/dfdLayoutEngine";
 import { useErDiagramStore } from "./useErDiagramStore";
 import { getProject, updateProject, createProject } from "../lib/projects";
 import { applyElkLayout } from "../utils/elkLayout";
@@ -37,6 +38,11 @@ export interface DfdEdge {
     startPoint?: { x: number; y: number };
     bendPoints?: { x: number; y: number }[];
     endPoint?: { x: number; y: number };
+    sourceColumnId?: string;
+    targetColumnId?: string;
+    pairIndex?: number;
+    pairTotal?: number;
+    [key: string]: any;
   };
 }
 
@@ -315,7 +321,17 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       let layoutedNewNodes: DfdNode[] = [];
       let layoutedNewEdges: DfdEdge[] = [];
 
-      if (diagramType === "dfd" || diagramType === "flowchart") {
+      if (diagramType === "dfd") {
+        // Run Semantic 3-Tier DFD layout
+        const result = await layoutDfdDiagram(
+          measuredNewNodes,
+          newEdges,
+          direction,
+          dfdLevel
+        );
+        layoutedNewNodes = result.nodes;
+        layoutedNewEdges = result.edges;
+      } else if (diagramType === "flowchart") {
         // Run Dagre layout
         const result = getLayoutedElements(
           measuredNewNodes as any[],
@@ -521,7 +537,17 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       let layoutedNodes: DfdNode[] = [];
       let layoutedEdges: DfdEdge[] = [];
 
-      if (diagramType === "dfd" || diagramType === "flowchart") {
+      if (diagramType === "dfd") {
+        // Run Semantic 3-Tier DFD layout
+        const result = await layoutDfdDiagram(
+          measuredNodes,
+          edges,
+          direction,
+          dfdLevel
+        );
+        layoutedNodes = result.nodes;
+        layoutedEdges = result.edges;
+      } else if (diagramType === "flowchart") {
         // Run Dagre layout
         const result = getLayoutedElements(
           measuredNodes as any[],

@@ -10,14 +10,23 @@ import {
   Trash2,
   Plus,
   Info,
+  Sparkles,
+  X,
 } from "lucide-react";
 import { generateDiagramFromDescription } from "../../utils/aiService";
 import { useEffect, useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useAuth } from "../../context/AuthContext";
 import { logAiGeneration } from "../../lib/projects";
 import { ErLeftPanel } from "./ErLeftPanel";
 import { useErDiagramStore } from "../../store/useErDiagramStore";
+import {
+  getGuestAiCredits,
+  decrementGuestAiCredits,
+  setPendingClaim,
+  saveGuestDiagram,
+} from "../../utils/guestStorage";
 
 /**
  * LeftLayersPanel Component
@@ -40,7 +49,9 @@ export const LeftLayersPanel = () => {
     setIsGenerating,
     applyAIGeneratedDiagram,
     diagramType,
+    setDiagramType,
     preferredDiagramType,
+    setPreferredDiagramType,
     dfdLevel,
     setDfdLevel,
     selectedNodeId,
@@ -58,11 +69,23 @@ export const LeftLayersPanel = () => {
 
   const currentType = diagramType || preferredDiagramType || "flowchart";
   const { session } = useAuth();
+  const navigate = useNavigate();
+  const isGuest = !session?.user?.id;
+  const [guestCredits, setGuestCredits] = useState<number>(getGuestAiCredits());
+  const [isUpsellOpen, setIsUpsellOpen] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
   const hasAutoTriggeredRef = useRef(false);
 
   const handleSmartSuggest = async () => {
     if (!projectDescription.trim()) return;
+
+    if (isGuest) {
+      const currentCredits = getGuestAiCredits();
+      if (currentCredits <= 0) {
+        setIsUpsellOpen(true);
+        return;
+      }
+    }
 
     setIsGenerating(true);
     setLoadingStep(1);
@@ -134,13 +157,37 @@ export const LeftLayersPanel = () => {
         }
       }
 
+      let remainingCredits = guestCredits;
+      if (isGuest) {
+        remainingCredits = decrementGuestAiCredits();
+        setGuestCredits(remainingCredits);
+      }
+
       // Auto-save the generated diagram immediately
-      setProjectTitle(
+      const newTitle =
         projectDescription.slice(0, 30) +
-          (projectDescription.length > 30 ? "..." : ""),
-      );
+        (projectDescription.length > 30 ? "..." : "");
+      setProjectTitle(newTitle);
+
       if (session?.user?.id) {
         await saveProject(session.user.id);
+      } else {
+        const erData = currentType === "er" ? useErDiagramStore.getState().getAstData() : undefined;
+        saveGuestDiagram({
+          title: newTitle,
+          diagramType: currentType,
+          nodes: useDiagramStore.getState().nodes,
+          edges: useDiagramStore.getState().edges,
+          mermaidCode: useDiagramStore.getState().mermaidCode,
+          direction: useDiagramStore.getState().direction,
+          erData,
+        });
+        toast.success(
+          remainingCredits > 0
+            ? `Diagram generated! (${remainingCredits} free trial${remainingCredits === 1 ? "" : "s"} left)`
+            : "Diagram generated! You've used all 3 free trials. Sign up to unlock more.",
+          { icon: "✨" }
+        );
       }
     } catch (error: unknown) {
       const msg =
@@ -211,7 +258,7 @@ export const LeftLayersPanel = () => {
           className="w-full text-xs bg-bg/50 text-neutral border border-border/80 rounded-md p-2 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary resize-none h-20 placeholder:text-neutral/40"
         />
 
-        {/* Frozen Diagram Type Toggle with Separators */}
+        {/* Diagram Type Toggle (Selectable for Guests, Frozen for Signed-in Projects) */}
         <div className="flex flex-col gap-2">
           <div className="flex text-[10px] rounded-md overflow-hidden border border-border/80 p-0.5 bg-bg/50 divide-x divide-border/70">
             {(["dfd", "flowchart", "er"] as const).map((type) => {
@@ -219,13 +266,21 @@ export const LeftLayersPanel = () => {
               return (
                 <button
                   key={type}
-                  disabled
+                  disabled={!isGuest}
                   type="button"
-                  tabIndex={-1}
+                  tabIndex={isGuest ? 0 : -1}
+                  onClick={() => {
+                    if (isGuest) {
+                      setDiagramType(type);
+                      setPreferredDiagramType(type);
+                    }
+                  }}
                   className={`flex-1 py-1.5 text-center font-medium rounded-xs select-none transition-colors ${
                     isActive
                       ? "bg-primary text-white shadow-sm cursor-default"
-                      : "text-neutral/30 opacity-35 cursor-not-allowed pointer-events-none"
+                      : isGuest
+                        ? "text-neutral/60 hover:text-neutral hover:bg-neutral/10 cursor-pointer"
+                        : "text-neutral/30 opacity-35 cursor-not-allowed pointer-events-none"
                   }`}
                 >
                   {type.toUpperCase()}
@@ -274,15 +329,40 @@ export const LeftLayersPanel = () => {
           )}
         </div>
 
+        {isGuest && (
+          <div className="flex items-center justify-between px-2 py-1 bg-input border border-border/60 rounded-md text-[10px]">
+            <span className="text-neutral/50 font-medium flex items-center gap-1.5">
+              <Sparkles size={11} className="text-primary" /> Free Guest Trial
+            </span>
+            <span
+              className={`px-1.5 py-0.5 rounded font-mono font-bold ${
+                guestCredits > 0
+                  ? "bg-primary/15 text-primary"
+                  : "bg-rose-500/15 text-rose-400"
+              }`}
+            >
+              {guestCredits} / 3 left
+            </span>
+          </div>
+        )}
+
         <button
           onClick={handleSmartSuggest}
           disabled={isGenerating || !projectDescription.trim()}
-          className="w-full text-xs bg-primary hover:bg-primary/80 disabled:bg-primary/20 disabled:text-primary/80 text-white py-2 rounded-md transition-colors font-medium flex items-center justify-center gap-2 overflow-hidden"
+          className={`w-full text-xs py-2 rounded-md transition-colors font-medium flex items-center justify-center gap-2 overflow-hidden cursor-pointer ${
+            isGuest && guestCredits <= 0
+              ? "bg-rose-600/80 hover:bg-rose-600 text-white"
+              : "bg-primary hover:bg-primary/80 disabled:bg-primary/20 disabled:text-primary/80 text-white"
+          }`}
         >
           <span
             className={`transition-all duration-300 ${isGenerating ? "animate-pulse" : ""}`}
           >
-            {isGenerating ? getLoadingText() : "✨ Generate Diagram"}
+            {isGenerating
+              ? getLoadingText()
+              : isGuest && guestCredits <= 0
+                ? "🔒 Unlock Unlimited AI"
+                : "✨ Generate Diagram"}
           </span>
         </button>
       </div>
@@ -395,6 +475,64 @@ export const LeftLayersPanel = () => {
                 </li>
               ))}
             </ul>
+          </div>
+        </div>
+      )}
+
+      {/* Guest AI Limit Upsell Modal */}
+      {isUpsellOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-panel border border-border rounded-2xl shadow-2xl w-full max-w-[420px] p-6 flex flex-col gap-5 animate-in zoom-in-95 duration-200 mx-4">
+            <div className="flex justify-between items-start">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+                  <Sparkles size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-neutral">Trial Limit Reached</h3>
+                  <p className="text-xs text-neutral/50 mt-0.5">3 / 3 Free Guest Generations Used</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsUpsellOpen(false)}
+                className="text-neutral/40 hover:text-neutral p-1 rounded-md transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="text-xs text-neutral/70 leading-relaxed bg-input border border-border rounded-xl p-3.5">
+              You've experienced DiagramSathi's AI generation! Create a free account now to get unlimited AI diagram generation, save your projects to the cloud, and access the workspace dashboard.
+            </p>
+
+            <div className="flex flex-col gap-2 pt-1">
+              <button
+                onClick={() => {
+                  setPendingClaim(true);
+                  navigate("/signup");
+                }}
+                className="w-full py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 shadow-lg shadow-primary/20 transition-all cursor-pointer"
+              >
+                Create Free Account
+              </button>
+
+              <button
+                onClick={() => {
+                  setPendingClaim(true);
+                  navigate("/signin");
+                }}
+                className="w-full py-2 bg-neutral/5 hover:bg-neutral/10 border border-border text-neutral rounded-xl text-xs font-semibold transition-all cursor-pointer"
+              >
+                Already have an account? Sign In
+              </button>
+
+              <button
+                onClick={() => setIsUpsellOpen(false)}
+                className="w-full py-1 text-xs text-neutral/40 hover:text-neutral/70 transition-colors cursor-pointer text-center"
+              >
+                Continue editing manually
+              </button>
+            </div>
           </div>
         </div>
       )}

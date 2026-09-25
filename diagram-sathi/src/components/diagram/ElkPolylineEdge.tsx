@@ -15,9 +15,10 @@ const CORNER_RADIUS = 6;
 /**
  * Builds an SVG path with rounded corners at each bend point.
  * Uses arc commands (A) instead of sharp line-to (L) for clean 90° turns.
+ * Exported so ER relationship edges can share the exact same clean rounded polyline rendering.
  */
-function buildRoundedPath(points: { x: number; y: number }[]): string {
-  if (points.length < 2) return '';
+export function buildRoundedPath(points: { x: number; y: number }[]): string {
+  if (points.length < 2) return "";
   if (points.length === 2) {
     return `M ${points[0].x},${points[0].y} L ${points[1].x},${points[1].y}`;
   }
@@ -39,11 +40,14 @@ function buildRoundedPath(points: { x: number; y: number }[]): string {
     const len1 = Math.sqrt(dx1 * dx1 + dy1 * dy1);
     const len2 = Math.sqrt(dx2 * dx2 + dy2 * dy2);
 
+    // Cross product to detect turns vs collinear straight segments
+    const cross = dx1 * dy2 - dy1 * dx2;
+
     // Clamp radius to half the shorter segment
     const r = Math.min(CORNER_RADIUS, len1 / 2, len2 / 2);
 
-    if (r <= 0 || len1 === 0 || len2 === 0) {
-      // Degenerate segment — just draw a line
+    if (r <= 0 || len1 === 0 || len2 === 0 || Math.abs(cross) < 1e-3) {
+      // Degenerate segment or collinear — smoothly draw a line to avoid loop distortion
       path += ` L ${curr.x},${curr.y}`;
       continue;
     }
@@ -57,7 +61,6 @@ function buildRoundedPath(points: { x: number; y: number }[]): string {
     const arcEndY = curr.y + (dy2 / len2) * r;
 
     // Determine sweep direction
-    const cross = dx1 * dy2 - dy1 * dx2;
     const sweep = cross > 0 ? 1 : 0;
 
     path += ` L ${arcStartX},${arcStartY}`;
@@ -96,28 +99,48 @@ export const ElkPolylineEdge = ({
   // Construct rounded SVG path
   const path = buildRoundedPath(allPoints);
 
-  // Calculate the longest segment for label positioning
-  let longestSegmentIndex = 0;
-  let maxDistance = 0;
+  // Find best segment for label positioning — prioritizing horizontal segments
+  let bestSegmentIndex = 0;
+  let maxScore = -1;
 
   for (let i = 0; i < allPoints.length - 1; i++) {
     const p1 = allPoints[i];
     const p2 = allPoints[i + 1];
-    const distance = Math.sqrt(
-      Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2),
-    );
+    const dx = Math.abs(p2.x - p1.x);
+    const dy = Math.abs(p2.y - p1.y);
+    const len = Math.sqrt(dx * dx + dy * dy);
+    const isHorizontal = dx >= dy;
+    // Strongly favor horizontal segments so labels align comfortably along lines
+    const score = isHorizontal ? len * 3 : len;
 
-    if (distance > maxDistance) {
-      maxDistance = distance;
-      longestSegmentIndex = i;
+    if (score > maxScore) {
+      maxScore = score;
+      bestSegmentIndex = i;
     }
   }
 
-  // Midpoint of the longest segment
-  const p1 = allPoints[longestSegmentIndex];
-  const p2 = allPoints[longestSegmentIndex + 1];
-  const labelX = (p1.x + p2.x) / 2;
-  const labelY = (p1.y + p2.y) / 2;
+  // Midpoint of the chosen segment
+  const p1 = allPoints[bestSegmentIndex] || start;
+  const p2 = allPoints[bestSegmentIndex + 1] || end;
+  let labelX = (p1.x + p2.x) / 2;
+  let labelY = (p1.y + p2.y) / 2;
+
+  // Stagger labels for parallel lines to prevent overlapping text
+  const pairIndex = (data?.pairIndex as number) ?? 0;
+  const pairTotal = (data?.pairTotal as number) ?? 1;
+  const isHorizontal = Math.abs(p2.x - p1.x) >= Math.abs(p2.y - p1.y);
+
+  if (isHorizontal) {
+    labelY -= 14;
+    if (pairTotal > 1) {
+      labelX += (pairIndex - (pairTotal - 1) / 2) * 55;
+    }
+  } else {
+    labelX += 18;
+    if (pairTotal > 1) {
+      labelY += (pairIndex - (pairTotal - 1) / 2) * 32;
+    }
+  }
 
   return (
     <>
@@ -128,17 +151,19 @@ export const ElkPolylineEdge = ({
             style={{
               position: "absolute",
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-              padding: "4px 8px",
-              borderRadius: 4,
-              fontSize: 12,
-              fontWeight: 500,
-              background: "var(--edge-label-bg)",
-              color: "var(--edge-label-text)",
+              padding: "3px 8px",
+              borderRadius: 6,
+              fontSize: 11,
+              fontWeight: 600,
+              background: "var(--edge-label-bg, rgba(15, 23, 42, 0.92))",
+              color: "var(--edge-label-text, #f1f5f9)",
               pointerEvents: "all",
               whiteSpace: "nowrap",
-              border: "1px solid var(--border-color)",
+              border: "1px solid var(--border-color, rgba(51, 65, 85, 0.8))",
+              backdropFilter: "blur(4px)",
+              boxShadow: "0 2px 8px rgba(0, 0, 0, 0.25)",
             }}
-            className="nodrag nopan"
+            className="nodrag nopan z-20"
           >
             {label}
           </div>

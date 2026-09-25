@@ -7,6 +7,16 @@ import { RightPropertiesPanel } from "../components/ui/RightPropertiesPanel";
 import { PaneCenterCanvas } from "../components/PanelCenterCanvas";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { useDiagramStore } from "../store/useDiagramStore";
+import { useErDiagramStore } from "../store/useErDiagramStore";
+import { createProject } from "../lib/projects";
+import toast from "react-hot-toast";
+import {
+  loadGuestDiagram,
+  saveGuestDiagram,
+  isPendingClaim,
+  clearPendingClaim,
+  clearGuestDiagram,
+} from "../utils/guestStorage";
 
 export function Editor() {
   const { id } = useParams<{ id: string }>();
@@ -93,12 +103,71 @@ export function Editor() {
     };
   }, [isResizingLeft, isResizingRight]);
 
-  // Hydrate Project from URL ID
+  // Hydrate Project from URL ID or Guest Storage
   useEffect(() => {
+    // 1. If signed in and has a pending claim from guest mode, migrate the diagram
+    if (userId && isPendingClaim()) {
+      const pendingGuest = loadGuestDiagram();
+      if (
+        pendingGuest &&
+        (pendingGuest.nodes?.length > 0 || (pendingGuest.erData?.schemas?.length || 0) > 0)
+      ) {
+        clearPendingClaim();
+        toast.loading("Saving your diagram to your account...", { id: "claim-toast" });
+        createProject(userId, {
+          title: pendingGuest.title || "Untitled Diagram",
+          description: pendingGuest.description || "",
+          diagram_type: pendingGuest.diagramType || "dfd",
+          ast_data: { nodes: pendingGuest.nodes, edges: pendingGuest.edges },
+          dfd_level: pendingGuest.dfdLevel || 0,
+          er_data: pendingGuest.erData,
+          mermaid_code: pendingGuest.mermaidCode,
+          canvas_settings: { direction: pendingGuest.direction || "LR" },
+          status: "active",
+        })
+          .then((newProj) => {
+            clearGuestDiagram();
+            toast.success("Diagram saved to your account!", { id: "claim-toast" });
+            navigate(`/editor/${newProj.id}`, { replace: true });
+          })
+          .catch((err) => {
+            console.error("Failed to claim guest project:", err);
+            toast.error("Failed to save diagram to cloud", { id: "claim-toast" });
+          });
+        return;
+      } else {
+        clearPendingClaim();
+      }
+    }
+
+    // 2. Standalone Editor without ID: Handle Guest Mode
     if (!id) {
       loadedProjectIdRef.current = null;
       setCurrentProjectId(null);
       setIsProjectLoading(false);
+
+      // In guest mode (or blank new editor), restore stored guest diagram if store is currently empty
+      if (!userId) {
+        const guestData = loadGuestDiagram();
+        const currentNodes = useDiagramStore.getState().nodes;
+        if (guestData && currentNodes.length === 0 && guestData.nodes && guestData.nodes.length > 0) {
+          useDiagramStore.setState({
+            projectTitle: guestData.title || "Untitled Diagram",
+            projectDescription: guestData.description || "",
+            nodes: guestData.nodes || [],
+            edges: guestData.edges || [],
+            diagramType: guestData.diagramType || "dfd",
+            preferredDiagramType: guestData.diagramType || "dfd",
+            dfdLevel: guestData.dfdLevel || 0,
+            direction: guestData.direction || "LR",
+            mermaidCode: guestData.mermaidCode || "",
+          });
+          if (guestData.diagramType === "er" && guestData.erData) {
+            useErDiagramStore.getState().loadFromAstData(guestData.erData);
+          }
+          setTimeout(() => forceLayoutRefresh(), 100);
+        }
+      }
       return;
     }
 
@@ -153,9 +222,29 @@ export function Editor() {
       isInitialMount.current = false;
       return;
     }
-    // Prevent auto-save while project is still loading or if URL ID hasn't loaded into memory yet
-    if (!userId || isProjectLoading || (id && loadedProjectIdRef.current !== id)) return;
+    // Prevent cloud auto-save while project is still loading or if URL ID hasn't loaded into memory yet
+    if (isProjectLoading || (id && loadedProjectIdRef.current !== id)) return;
 
+    // Guest Mode: auto-save locally to browser storage
+    if (!userId && !id) {
+      const guestTimer = setTimeout(() => {
+        const erData = diagramType === "er" ? useErDiagramStore.getState().getAstData() : undefined;
+        saveGuestDiagram({
+          title: projectTitle,
+          diagramType,
+          nodes,
+          edges,
+          mermaidCode: useDiagramStore.getState().mermaidCode,
+          direction: useDiagramStore.getState().direction,
+          erData,
+        });
+      }, 1000);
+      return () => clearTimeout(guestTimer);
+    }
+
+    if (!userId) return;
+
+    // Authenticated Mode: save to Supabase
     const timer = setTimeout(() => {
       saveProject(userId).catch((err) => console.error("Auto-save failed", err));
     }, 2000);

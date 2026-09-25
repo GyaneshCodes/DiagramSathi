@@ -176,60 +176,32 @@ const FloatingSmoothStepEdge = ({
           <EdgeLabelRenderer>
             {(() => {
               // --- Dynamic Geometry-Aware Label Translating ---
-              const EDGE_SPACING = 18;
+              const EDGE_SPACING = 28;
               const offsetAmount =
                 pairTotal <= 1 ? 0 : (pairIndex - (pairTotal - 1) / 2) * EDGE_SPACING;
 
-              // ========================================================
-              // TWEAKABLE CONFIGURATION PARAMETERS
-              // Change these values to adjust the label distances from the lines
-              // ========================================================
-              const VERTICAL_EDGE_HORIZONTAL_OFFSET = 45; // Shift amount to the left/right of vertical lines (in pixels)
-              const HORIZONTAL_EDGE_TOP_OFFSET = -8;      // Spacing above the top horizontal line (in pixels)
-              const HORIZONTAL_EDGE_BOTTOM_OFFSET = 8;    // Spacing below the bottom horizontal line (in pixels)
-
               let translateXPercent = -50;
-              let translateYPercent = -100;
+              let translateYPercent = -50;
               let additionalX = 0;
-              let additionalY = -4;
+              let additionalY = 0;
 
               const isVertical = sourcePos === Position.Top || sourcePos === Position.Bottom;
 
               if (isVertical) {
                 if (pairTotal > 1) {
-                  if (offsetAmount < 0) {
-                    // Left-shifted edge
-                    additionalX = -VERTICAL_EDGE_HORIZONTAL_OFFSET;
-                    translateYPercent = -50;
-                    additionalY = 0;
-                  } else if (offsetAmount > 0) {
-                    // Right-shifted edge
-                    additionalX = VERTICAL_EDGE_HORIZONTAL_OFFSET;
-                    translateYPercent = -50;
-                    additionalY = 0;
-                  } else {
-                    // Center edge (in 3-edge layout)
-                    additionalX = 0;
-                    translateYPercent = -50;
-                    additionalY = 0;
-                  }
+                  // Stagger vertically along line
+                  const vStagger = (pairIndex - (pairTotal - 1) / 2) * 28;
+                  additionalY = vStagger;
+                  additionalX = offsetAmount < 0 ? -36 : offsetAmount > 0 ? 36 : 0;
                 }
               } else {
-                // Horizontal edge
+                // Horizontal edge: stagger horizontally along line so parallel labels never overlap
                 if (pairTotal > 1) {
-                  if (offsetAmount < 0) {
-                    // Top-shifted edge
-                    translateYPercent = -100;
-                    additionalY = HORIZONTAL_EDGE_TOP_OFFSET;
-                  } else if (offsetAmount > 0) {
-                    // Bottom-shifted edge
-                    translateYPercent = 0;
-                    additionalY = HORIZONTAL_EDGE_BOTTOM_OFFSET;
-                  } else {
-                    // Center edge (in 3-edge layout)
-                    translateYPercent = -50;
-                    additionalY = 0;
-                  }
+                  const hStagger = (pairIndex - (pairTotal - 1) / 2) * 55;
+                  additionalX = hStagger;
+                  additionalY = -12;
+                } else {
+                  additionalY = -12;
                 }
               }
 
@@ -240,15 +212,19 @@ const FloatingSmoothStepEdge = ({
                   style={{
                     position: "absolute",
                     transform: transformStyle,
-                    padding: "4px 4px",
-                    borderRadius: 4,
-                    fontSize: 12,
-                    fontWeight: 500,
-                    background: "var(--edge-label-bg)",
-                    color: "var(--edge-label-text)",
+                    padding: "3px 8px",
+                    borderRadius: 6,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    background: "var(--edge-label-bg, rgba(15, 23, 42, 0.95))",
+                    color: "var(--edge-label-text, #f1f5f9)",
                     pointerEvents: "all",
+                    whiteSpace: "nowrap",
+                    border: "1px solid var(--border-color, rgba(51, 65, 85, 0.8))",
+                    backdropFilter: "blur(6px)",
+                    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.35)",
                   }}
-                  className="nodrag nopan"
+                  className="nodrag nopan z-20"
                 >
                   {label}
                 </div>
@@ -481,7 +457,7 @@ const PaneCenterCanvasInner = () => {
             fontBold: n.fontBold,
             fontItalic: n.fontItalic
           },
-          draggable: !isErContainer,
+          draggable: diagramType === "flowchart" && !isErContainer,
           selectable: !isErContainer,
           style: isErContainer ? { width: dims.width, height: dims.height, zIndex: -1 } : undefined,
           ...(n.parentId ? { parentId: n.parentId } : {}),
@@ -511,9 +487,11 @@ const PaneCenterCanvasInner = () => {
             id: e.id,
             source: e.source,
             target: e.target,
+            sourceHandle: e.sourceHandle,
+            targetHandle: e.targetHandle,
             selected: selectedEdgeIds.includes(e.id),
             type: "er-relationship",
-            data: {},
+            data: e.data || {},
             markerEnd: {
               type: MarkerType.ArrowClosed,
               color: edgeStroke,
@@ -570,17 +548,17 @@ const PaneCenterCanvasInner = () => {
         };
       });
 
-      // Apply fitView if layoutVersion changed
+      setNodes(rfNodes);
+      setEdges(rfEdges);
+
+      // Apply fitView if layoutVersion changed (after DOM elements mount)
       if (layoutAppliedRef.current === false) {
         layoutAppliedRef.current = true;
 
-        requestAnimationFrame(() => {
-          fitView({ duration: 400, padding: 0.15 });
-        });
+        setTimeout(() => {
+          fitView({ duration: 350, padding: 0.2 });
+        }, 60);
       }
-
-      setNodes(rfNodes);
-      setEdges(rfEdges);
     } catch (err: unknown) {
       console.error("Canvas Mapping Error:", err);
       setError("Error mapping AST to Canvas");
@@ -611,6 +589,35 @@ const PaneCenterCanvasInner = () => {
 
   const onConnect = useCallback(
     (params: Connection) => {
+      if (diagramType === "er") {
+        if (params.source && params.target) {
+          const sourceSchemaId = params.source.replace("er_", "");
+          const targetSchemaId = params.target.replace("er_", "");
+          const cleanColId = (h: string | null | undefined) => {
+            if (!h || h.includes("source") || h.includes("target")) {
+              if (h?.includes("-source") || h?.includes("-target")) {
+                const cleaned = h.replace(/-right$|-left-src$|-left$|-right-tgt$|-source$|-target$/, "");
+                return cleaned.startsWith("col_") ? cleaned : undefined;
+              }
+              return undefined;
+            }
+            return h.replace(/-right$|-left-src$|-left$|-right-tgt$/, "");
+          };
+          const sourceColId = cleanColId(params.sourceHandle);
+          const targetColId = cleanColId(params.targetHandle);
+          useErDiagramStore
+            .getState()
+            .addRelationship(
+              sourceSchemaId,
+              targetSchemaId,
+              "one-to-many",
+              sourceColId,
+              targetColId
+            );
+        }
+        return;
+      }
+
       setEdges((eds) => rfAddEdge(params, eds));
       if (params.source && params.target) {
         storeAddEdge({
@@ -620,7 +627,7 @@ const PaneCenterCanvasInner = () => {
         });
       }
     },
-    [setEdges, storeAddEdge],
+    [diagramType, setEdges, storeAddEdge],
   );
 
   const onNodeClick = useCallback(
@@ -711,6 +718,7 @@ const PaneCenterCanvasInner = () => {
             height: maxY - minY + pad * 2 + topExtra,
           });
         }
+        useErDiagramStore.getState().syncToMainStore();
       }
 
       // Auto-save the manual layout changes to Supabase immediately
@@ -757,7 +765,7 @@ const PaneCenterCanvasInner = () => {
         <ReactFlow
           nodes={nodes}
           edges={edges}
-          nodesDraggable={true}
+          nodesDraggable={diagramType === "flowchart"}
           nodesConnectable={false}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}

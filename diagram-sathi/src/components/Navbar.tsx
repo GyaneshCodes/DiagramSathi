@@ -1,22 +1,26 @@
 import { useState, useRef, useEffect } from "react";
-import { UserCircle, User, LayoutDashboard, LogOut, Share2, Download, X, ArrowLeft, Save, Pencil } from "lucide-react";
+import { UserCircle, User, LayoutDashboard, LogOut, Share2, Download, X, ArrowLeft, Save, Pencil, Cloud, Sparkles } from "lucide-react";
 import { toPng } from "html-to-image";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useDiagramStore } from "../store/useDiagramStore";
+import { useErDiagramStore } from "../store/useErDiagramStore";
 import { useAuth } from "../context/AuthContext";
 import { renameProject } from "../lib/projects";
 import { ThemeToggle } from "./ui/ThemeToggle";
 import { getNodesBounds } from "@xyflow/react";
+import { saveGuestDiagram, setPendingClaim } from "../utils/guestStorage";
 
 export const Navbar = () => {
   const [isExportOpen, setIsExportOpen] = useState(false);
+  const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
   const [isTransparent, setIsTransparent] = useState(true);
   const [exportScope, setExportScope] = useState<"entire" | "selected">("entire");
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { session, user, profile, signOut } = useAuth();
+  const isGuest = !user;
   const { saveProject, projectTitle, setProjectTitle, projectStatus, currentProjectId } = useDiagramStore();
 
   const [isRenaming, setIsRenaming] = useState(false);
@@ -76,8 +80,31 @@ export const Navbar = () => {
         toast.error("Failed to rename");
         setProjectTitle(prevTitle);
       }
+    } else if (isGuest) {
+      saveGuestDiagram({ title: trimmed });
+      toast.success("Renamed locally");
     }
     setIsRenaming(false);
+  };
+
+  const handleGuestSave = () => {
+    const erData =
+      useDiagramStore.getState().diagramType === "er"
+        ? useErDiagramStore.getState().getAstData()
+        : undefined;
+
+    saveGuestDiagram({
+      title: projectTitle,
+      diagramType: useDiagramStore.getState().diagramType,
+      nodes: useDiagramStore.getState().nodes,
+      edges: useDiagramStore.getState().edges,
+      mermaidCode: useDiagramStore.getState().mermaidCode,
+      direction: useDiagramStore.getState().direction,
+      erData,
+    });
+
+    toast.success("Progress saved locally!");
+    setIsClaimModalOpen(true);
   };
 
   const handleDraftToggle = async () => {
@@ -250,13 +277,15 @@ export const Navbar = () => {
     <>
       <div className="relative z-50 h-14 bg-panel/80 backdrop-blur-md border-b border-border/50 flex items-center justify-between px-6 shrink-0">
         <div className="flex items-center gap-4">
-          <button 
-            onClick={() => navigate("/home")}
-            className="text-neutral/70 hover:text-neutral transition-colors p-1.5 rounded-md hover:bg-neutral/10 flex items-center justify-center cursor-pointer"
-            title="Go to Dashboard"
-          >
-            <ArrowLeft size={20} />
-          </button>
+          {!isGuest && (
+            <button 
+              onClick={() => navigate("/home")}
+              className="text-neutral/70 hover:text-neutral transition-colors p-1.5 rounded-md hover:bg-neutral/10 flex items-center justify-center cursor-pointer"
+              title="Go to Dashboard"
+            >
+              <ArrowLeft size={20} />
+            </button>
+          )}
           <div className="flex flex-col min-w-0">
             {isRenaming ? (
               <input
@@ -282,8 +311,8 @@ export const Navbar = () => {
                 <Pencil className="w-3 h-3 text-neutral/50 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
               </div>
             )}
-            <span className={`text-[10px] uppercase tracking-wider font-medium ${projectStatus === 'draft' ? 'text-amber-500' : 'text-emerald-500'}`}>
-               {currentProjectId ? (projectStatus === 'draft' ? 'Draft - Auto Saved' : 'Saved') : 'Unsaved'}
+            <span className={`text-[10px] uppercase tracking-wider font-medium ${isGuest ? 'text-primary font-semibold' : (projectStatus === 'draft' ? 'text-amber-500' : 'text-emerald-500')}`}>
+               {isGuest ? 'Guest Mode (Saved Locally)' : (currentProjectId ? (projectStatus === 'draft' ? 'Draft - Auto Saved' : 'Saved') : 'Unsaved')}
             </span>
           </div>
         </div>
@@ -291,77 +320,89 @@ export const Navbar = () => {
         <div className="flex items-center gap-4">
           <ThemeToggle />
 
-          {/* Profile Button & Menu */}
-          <div className="relative" ref={profileMenuRef}>
+          {/* Profile Button & Menu or Guest Sign In */}
+          {isGuest ? (
             <button
-              onClick={() => setIsProfileMenuOpen((prev) => !prev)}
-              className="flex items-center justify-center rounded-full p-0.5 text-neutral/70 hover:text-neutral hover:ring-2 hover:ring-primary/40 transition-all cursor-pointer"
-              title={profile?.display_name || user?.email || "Account"}
-              aria-label="User menu"
-              aria-expanded={isProfileMenuOpen}
+              onClick={() => {
+                setPendingClaim(true);
+                navigate("/signin");
+              }}
+              className="px-3.5 py-1.5 rounded-lg border border-border/80 text-xs font-semibold text-neutral hover:bg-neutral/10 hover:border-border transition-all cursor-pointer"
             >
-              {profile?.avatar_url ? (
-                <img
-                  src={profile.avatar_url}
-                  alt="Profile"
-                  className="w-6 h-6 rounded-full object-cover ring-1 ring-border"
-                />
-              ) : (
-                <UserCircle size={22} strokeWidth={1.5} />
-              )}
+              Sign In
             </button>
+          ) : (
+            <div className="relative" ref={profileMenuRef}>
+              <button
+                onClick={() => setIsProfileMenuOpen((prev) => !prev)}
+                className="flex items-center justify-center rounded-full p-0.5 text-neutral/70 hover:text-neutral hover:ring-2 hover:ring-primary/40 transition-all cursor-pointer"
+                title={profile?.display_name || user?.email || "Account"}
+                aria-label="User menu"
+                aria-expanded={isProfileMenuOpen}
+              >
+                {profile?.avatar_url ? (
+                  <img
+                    src={profile.avatar_url}
+                    alt="Profile"
+                    className="w-6 h-6 rounded-full object-cover ring-1 ring-border"
+                  />
+                ) : (
+                  <UserCircle size={22} strokeWidth={1.5} />
+                )}
+              </button>
 
-            {isProfileMenuOpen && (
-              <div className="absolute right-0 mt-2 w-52 bg-panel border border-border rounded-xl shadow-xl py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150 flex flex-col">
-                <div className="px-3 py-2 border-b border-border mb-1">
-                  <p className="text-xs font-semibold text-neutral truncate">
-                    {profile?.display_name || "Architect"}
-                  </p>
-                  <p className="text-[11px] text-neutral/50 truncate font-mono">
-                    {user?.email || "Signed in"}
-                  </p>
+              {isProfileMenuOpen && (
+                <div className="absolute right-0 mt-2 w-52 bg-panel border border-border rounded-xl shadow-xl py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150 flex flex-col">
+                  <div className="px-3 py-2 border-b border-border mb-1">
+                    <p className="text-xs font-semibold text-neutral truncate">
+                      {profile?.display_name || "Architect"}
+                    </p>
+                    <p className="text-[11px] text-neutral/50 truncate font-mono">
+                      {user?.email || "Signed in"}
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setIsProfileMenuOpen(false);
+                      navigate("/profile");
+                    }}
+                    className="w-full px-3 py-1.5 text-xs font-medium text-neutral/80 hover:text-neutral hover:bg-neutral/10 flex items-center gap-2.5 transition-colors text-left cursor-pointer"
+                  >
+                    <User size={14} className="text-neutral/60" /> Profile
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setIsProfileMenuOpen(false);
+                      navigate("/home");
+                    }}
+                    className="w-full px-3 py-1.5 text-xs font-medium text-neutral/80 hover:text-neutral hover:bg-neutral/10 flex items-center gap-2.5 transition-colors text-left cursor-pointer"
+                  >
+                    <LayoutDashboard size={14} className="text-neutral/60" /> Dashboard
+                  </button>
+
+                  <div className="h-px bg-border my-1" />
+
+                  <button
+                    onClick={async () => {
+                      setIsProfileMenuOpen(false);
+                      try {
+                        await signOut();
+                        toast.success("Signed out successfully");
+                        navigate("/signin", { replace: true });
+                      } catch {
+                        toast.error("Failed to sign out");
+                      }
+                    }}
+                    className="w-full px-3 py-1.5 text-xs font-medium text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 flex items-center gap-2.5 transition-colors text-left cursor-pointer"
+                  >
+                    <LogOut size={14} /> Sign Out
+                  </button>
                 </div>
-
-                <button
-                  onClick={() => {
-                    setIsProfileMenuOpen(false);
-                    navigate("/profile");
-                  }}
-                  className="w-full px-3 py-1.5 text-xs font-medium text-neutral/80 hover:text-neutral hover:bg-neutral/10 flex items-center gap-2.5 transition-colors text-left cursor-pointer"
-                >
-                  <User size={14} className="text-neutral/60" /> Profile
-                </button>
-
-                <button
-                  onClick={() => {
-                    setIsProfileMenuOpen(false);
-                    navigate("/home");
-                  }}
-                  className="w-full px-3 py-1.5 text-xs font-medium text-neutral/80 hover:text-neutral hover:bg-neutral/10 flex items-center gap-2.5 transition-colors text-left cursor-pointer"
-                >
-                  <LayoutDashboard size={14} className="text-neutral/60" /> Dashboard
-                </button>
-
-                <div className="h-px bg-border my-1" />
-
-                <button
-                  onClick={async () => {
-                    setIsProfileMenuOpen(false);
-                    try {
-                      await signOut();
-                      toast.success("Signed out successfully");
-                      navigate("/signin", { replace: true });
-                    } catch {
-                      toast.error("Failed to sign out");
-                    }
-                  }}
-                  className="w-full px-3 py-1.5 text-xs font-medium text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 flex items-center gap-2.5 transition-colors text-left cursor-pointer"
-                >
-                  <LogOut size={14} /> Sign Out
-                </button>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
           
           <div className="w-px h-5 bg-border mx-1"></div>
           
@@ -373,17 +414,27 @@ export const Navbar = () => {
             <Share2 size={16} /> SHARE
           </button>
 
-          <button
-            onClick={handleDraftToggle}
-            className={`px-4 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-colors ml-2 cursor-pointer ${
-              projectStatus === "draft" 
-                ? "bg-amber-500/20 text-amber-500 border border-amber-500/30"
-                : "bg-neutral/10 text-neutral/70 border border-border hover:bg-neutral/20 hover:text-neutral transition-colors"
-            }`}
-            title={projectStatus === "draft" ? "Remove from Draft" : "Mark as Draft"}
-          >
-            <Save size={16} /> {projectStatus === "draft" ? "Remove from Draft" : "Mark as Draft"}
-          </button>
+          {isGuest ? (
+            <button
+              onClick={handleGuestSave}
+              className="px-4 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-colors ml-2 bg-primary text-white hover:bg-primary/90 shadow-md shadow-primary/20 cursor-pointer"
+              title="Save Diagram"
+            >
+              <Save size={16} /> Save
+            </button>
+          ) : (
+            <button
+              onClick={handleDraftToggle}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-colors ml-2 cursor-pointer ${
+                projectStatus === "draft" 
+                  ? "bg-amber-500/20 text-amber-500 border border-amber-500/30"
+                  : "bg-neutral/10 text-neutral/70 border border-border hover:bg-neutral/20 hover:text-neutral transition-colors"
+              }`}
+              title={projectStatus === "draft" ? "Remove from Draft" : "Mark as Draft"}
+            >
+              <Save size={16} /> {projectStatus === "draft" ? "Remove from Draft" : "Mark as Draft"}
+            </button>
+          )}
           
           <button
             onClick={() => setIsExportOpen(true)}
@@ -472,6 +523,70 @@ export const Navbar = () => {
             >
               <Download size={18} /> Download PNG
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Claim / Save to Cloud Modal for Guests */}
+      {isClaimModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-panel border border-border rounded-2xl shadow-2xl w-full max-w-[440px] p-6 flex flex-col gap-5 animate-in zoom-in-95 duration-200 mx-4">
+            <div className="flex justify-between items-start">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+                  <Cloud size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-neutral">Save to Cloud Workspace</h3>
+                  <p className="text-xs text-neutral/50 mt-0.5">Never lose your architecture diagrams</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsClaimModalOpen(false)}
+                className="text-neutral/40 hover:text-neutral p-1 rounded-md transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="bg-input border border-border rounded-xl p-4 text-xs text-neutral/70 leading-relaxed space-y-2">
+              <p>
+                Your current diagram is safely stored in this browser. To keep it permanently, access it from any computer, and collaborate, create a free account.
+              </p>
+              <div className="flex items-center gap-2 text-primary font-medium pt-1">
+                <Sparkles size={14} />
+                <span>Your diagram will automatically transfer to your account!</span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2.5 pt-1">
+              <button
+                onClick={() => {
+                  setPendingClaim(true);
+                  navigate("/signup");
+                }}
+                className="w-full py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 shadow-lg shadow-primary/20 transition-all cursor-pointer"
+              >
+                Create Free Account
+              </button>
+
+              <button
+                onClick={() => {
+                  setPendingClaim(true);
+                  navigate("/signin");
+                }}
+                className="w-full py-2.5 bg-neutral/5 hover:bg-neutral/10 border border-border text-neutral rounded-xl text-xs font-semibold transition-all cursor-pointer"
+              >
+                Already have an account? Sign In
+              </button>
+
+              <button
+                onClick={() => setIsClaimModalOpen(false)}
+                className="w-full py-1.5 text-xs text-neutral/40 hover:text-neutral/70 transition-colors cursor-pointer text-center"
+              >
+                Continue editing locally
+              </button>
+            </div>
           </div>
         </div>
       )}
